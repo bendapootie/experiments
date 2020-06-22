@@ -79,7 +79,7 @@ struct Sequence
     uint8 g_[kSequenceLength] = { 0 };
 };
 
-struct Scores
+struct Score
 {
     uint8 right_position;
     uint8 right_color;
@@ -93,115 +93,39 @@ public:
 
 class Guess
 {
+public:
+	Guess(const Sequence& guess) :
+		guess_(guess)
+	{
+	}
+    // what sequence was guessed
     Sequence guess_;
-    std::vector<Scores> scores_;
+    // if not empty, what sequences are possible
+    Domain domain_;
+    Score scores_;
+};
+
+class Game
+{
+public:
+	Game(const Sequence& solution) :
+		solution_(solution)
+	{
+	}
+protected:
+	Sequence solution_;
+	std::vector<Guess> guesses_;
 };
 
 int main()
 {
     printf("Num Sequences = %d\n", Sequence::GetNumSequences());
+    
+    Guess test_guess(Sequence(0,1,2,3));
     for (int i = 0; i < Sequence::GetNumSequences(); i++)
     {
         Sequence s = Sequence::GetSequenceFromIndex(i);
+        Game g(s);
         s.Print();
     }
 }
-
-/*
-enum class GuessState
-{
-    Valid,
-    Invalid
-};
-
-struct Guess
-{
-public:
-    static const int kNumSlots = 4;
-    Guess(unsigned char a_, unsigned char b_, unsigned char c_, unsigned char d_)
-    {
-        g_[0] = a_;
-        g_[1] = b_;
-        g_[2] = c_;
-        g_[3] = d_;
-        state_ = GuessState::Valid;
-    }
-
-    // Returns true if 'this' is possible given the guess and 'right_color/right_place'
-    // of the passed in guess_
-    bool IsPossbileSolution(const Guess& guess_) const
-    {
-        Guess test_guess(*this);
-
-        // For each slot, figure out how many are right_place
-        for (int slot = 0; slot < kNumSlots; slot++)
-        {
-            if (test_guess.g_[slot] == guess_.g_[slot])
-            {
-                test_guess.right_place_ += 1;
-            }
-        }
-        return true;
-    }
-
-    union
-    {
-        unsigned int guess_;
-        unsigned char g_[kNumSlots];
-    };
-    unsigned char right_color_ = 0;
-    unsigned char right_place_ = 0;
-
-    GuessState state_;
-};
-
-class Solutions
-{
-public:
-    void GenerateAllSolutions()
-    {
-        guesses_.clear();
-        for (int a = 0; a < 6; a++)
-        {
-            for (int b = 0; b < 6; b++)
-            {
-                for (int c = 0; c < 6; c++)
-                {
-                    for (int d = 0; d < 6; d++)
-                    {
-                        guesses_.push_back(Guess(a, b, c, d));
-                    }
-                }
-            }
-        }
-    }
-
-    void AddPossibleSolutions(const Guess& guess_, const Solutions& set_)
-    {
-        for (int i = 0; i < set_.guesses_.size(); i++)
-        {
-            const Guess& set_guess = set_.guesses_[i];
-            if (set_guess.IsPossbileSolution(guess_))
-            {
-                guesses_.push_back(set_guess);
-            }
-        }
-    }
-
-private:
-    std::vector<Guess> guesses_;
-};
-*/
-/*
-int main()
-{
-    Solutions solutions;
-    solutions.GenerateAllSolutions();
-
-    Solutions possible;
-    Guess guess(0, 0, 0, 0);
-    guess.right_color_ = 0;
-    guess.right_place_ = 1;
-    possible.AddPossibleSolutions(guess, solutions);
-}
-*/
