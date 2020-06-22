@@ -112,6 +112,12 @@ public:
 		solution_(solution)
 	{
 	}
+	
+	void MakeGuess(const Sequence& guess)
+	{
+		guesses_.push_back(guess);
+	}
+	
 protected:
 	Sequence solution_;
 	std::vector<Guess> guesses_;
@@ -122,10 +128,14 @@ int main()
     printf("Num Sequences = %d\n", Sequence::GetNumSequences());
     
     Guess test_guess(Sequence(0,1,2,3));
+    Game g(Sequence(3,2,2,4));
+    g.MakeGuess(Sequence(0,1,2,3));
+    /*
     for (int i = 0; i < Sequence::GetNumSequences(); i++)
     {
         Sequence s = Sequence::GetSequenceFromIndex(i);
         Game g(s);
         s.Print();
     }
+    */
 }
