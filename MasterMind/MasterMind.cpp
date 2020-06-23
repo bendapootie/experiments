@@ -4,6 +4,7 @@
 
 static const int kSequenceLength = 4;
 static const int kNumColors = 6;
+static const int kInvalidColor = -1;
 
 typedef unsigned char uint8;
 
@@ -81,8 +82,8 @@ struct Sequence
 
 struct Score
 {
-    uint8 right_position;
-    uint8 right_color;
+    uint8 right_position = 0;
+    uint8 right_color = 0;
 };
 
 class Domain
@@ -102,7 +103,7 @@ public:
     Sequence guess_;
     // if not empty, what sequences are possible
     Domain domain_;
-    Score scores_;
+    Score score_;
 };
 
 class Game
@@ -116,6 +117,23 @@ public:
 	void MakeGuess(const Sequence& guess)
 	{
 		guesses_.push_back(guess);
+		Score score = CalculateScore(guess);
+		printf("score = %d,%d", score.right_position, score.right_color);
+	}
+	
+	Score CalculateScore(const Sequence& guess) const
+	{
+		Score out_score;
+		Sequence temp_guess(guess);
+		for (int i = 0; i < kSequenceLength; i++)
+		{
+			if (temp_guess.g_[i] == solution_.g_[i])
+			{
+				temp_guess.g_[i] = kInvalidColor;
+				out_score.right_position++;
+			}
+		}
+		return out_score;
 	}
 	
 protected:
