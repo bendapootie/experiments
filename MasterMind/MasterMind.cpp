@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <vector>
 
+typedef char int8;
 typedef unsigned char uint8;
 
 static const int kSequenceLength = 4;
@@ -82,8 +83,51 @@ struct Sequence
 
 struct Score
 {
-    uint8 right_position = 0;
-    uint8 right_color = 0;
+	static Score CalculateScore(const Sequence& guess, const Sequence& solution)
+	{
+		Score out_score;
+		Sequence temp_guess(guess);
+        Sequence temp_solution(solution);
+
+        // Find parts of the guess in the right position
+		for (int i = 0; i < kSequenceLength; i++)
+		{
+			if (temp_guess.g_[i] == temp_solution.g_[i])
+			{
+				temp_guess.g_[i] = kInvalidColor;
+                temp_solution.g_[i] = kInvalidColor;
+				out_score.right_position_++;
+			}
+		}
+
+        // Find parts that are the right color but wrong position
+        for (int i = 0; i < kSequenceLength; i++)
+        {
+            if (temp_guess.g_[i] != kInvalidColor)
+            {
+                for (int j = 0; j < kSequenceLength; j++)
+                {
+                    if (temp_guess.g_[i] == temp_solution.g_[j])
+                    {
+                        temp_guess.g_[i] = kInvalidColor;
+                        temp_solution.g_[j] = kInvalidColor;
+                        out_score.right_color_++;
+                        break;
+                    }
+                }
+            }
+        }
+
+		return out_score;
+	}
+	
+	bool operator == (const Score& rhs) const
+	{
+		return (right_position_ == rhs.right_position_) && (right_color_ == rhs.right_color_);
+	}
+	
+    int8 right_position_ = 0;
+    int8 right_color_ = 0;
 };
 
 class Domain
@@ -99,6 +143,21 @@ public:
 		guess_(guess)
 	{
 	}
+	
+	void CalculateDomain()
+	{
+	    for (int i = 0; i < Sequence::GetNumSequences(); i++)
+	    {
+	        Sequence s = Sequence::GetSequenceFromIndex(i);
+	        Score score = Score::CalculateScore(guess_, s);
+	        if (score == score_)
+	        {
+	        	domain_.sequences_.push_back(s);
+	        }
+	    }
+	    printf("Domain size = %d\n", domain_.sequences_.size());
+	}
+	
     // what sequence was guessed
     Sequence guess_;
     // if not empty, what sequences are possible
@@ -114,51 +173,15 @@ public:
 	{
 	}
 	
-	void MakeGuess(const Sequence& guess)
+	void MakeGuess(const Sequence& guess_sequence)
 	{
-		guesses_.push_back(guess);
-		Score score = CalculateScore(guess);
-		printf("score = %d,%d", score.right_position, score.right_color);
+		guesses_.push_back(guess_sequence);
+		Guess& new_guess = guesses_.back();
+		new_guess.score_ = Score::CalculateScore(new_guess.guess_, solution_);
+		new_guess.CalculateDomain();
+		printf("score = %d,%d", new_guess.score_.right_position_, new_guess.score_.right_color_);
 	}
-	
-	Score CalculateScore(const Sequence& guess) const
-	{
-		Score out_score;
-		Sequence temp_guess(guess);
-        Sequence temp_solution(solution_);
-
-        // Find parts of the guess in the right position
-		for (int i = 0; i < kSequenceLength; i++)
-		{
-			if (temp_guess.g_[i] == temp_solution.g_[i])
-			{
-				temp_guess.g_[i] = kInvalidColor;
-                temp_solution.g_[i] = kInvalidColor;
-				out_score.right_position++;
-			}
-		}
-
-        // Find parts that are the right color but wrong position
-        for (int i = 0; i < kSequenceLength; i++)
-        {
-            if (temp_guess.g_[i] != kInvalidColor)
-            {
-                for (int j = 0; j < kSequenceLength; j++)
-                {
-                    if (temp_guess.g_[i] == temp_solution.g_[j])
-                    {
-                        temp_guess.g_[i] = kInvalidColor;
-                        temp_solution.g_[j] = kInvalidColor;
-                        out_score.right_color++;
-                        break;
-                    }
-                }
-            }
-        }
-
-		return out_score;
-	}
-	
+		
 protected:
 	Sequence solution_;
 	std::vector<Guess> guesses_;
@@ -169,8 +192,8 @@ int main()
     printf("Num Sequences = %d\n", Sequence::GetNumSequences());
     
     Guess test_guess(Sequence(0,1,2,3));
-    Game g(Sequence(3,2,2,4));
-    g.MakeGuess(Sequence(2,2,4,2));
+    Game g(Sequence(2,4,5,5));
+    g.MakeGuess(Sequence(1,2,3,4));
     /*
     for (int i = 0; i < Sequence::GetNumSequences(); i++)
     {
