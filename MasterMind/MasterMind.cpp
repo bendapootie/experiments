@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <vector>
 
+typedef unsigned char uint8;
+
 static const int kSequenceLength = 4;
 static const int kNumColors = 6;
-static const int kInvalidColor = -1;
-
-typedef unsigned char uint8;
+static const unsigned char kInvalidColor = -1;
 
 struct Sequence
 {
@@ -125,14 +125,37 @@ public:
 	{
 		Score out_score;
 		Sequence temp_guess(guess);
+        Sequence temp_solution(solution_);
+
+        // Find parts of the guess in the right position
 		for (int i = 0; i < kSequenceLength; i++)
 		{
-			if (temp_guess.g_[i] == solution_.g_[i])
+			if (temp_guess.g_[i] == temp_solution.g_[i])
 			{
 				temp_guess.g_[i] = kInvalidColor;
+                temp_solution.g_[i] = kInvalidColor;
 				out_score.right_position++;
 			}
 		}
+
+        // Find parts that are the right color but wrong position
+        for (int i = 0; i < kSequenceLength; i++)
+        {
+            if (temp_guess.g_[i] != kInvalidColor)
+            {
+                for (int j = 0; j < kSequenceLength; j++)
+                {
+                    if (temp_guess.g_[i] == temp_solution.g_[j])
+                    {
+                        temp_guess.g_[i] = kInvalidColor;
+                        temp_solution.g_[j] = kInvalidColor;
+                        out_score.right_color++;
+                        break;
+                    }
+                }
+            }
+        }
+
 		return out_score;
 	}
 	
@@ -147,7 +170,7 @@ int main()
     
     Guess test_guess(Sequence(0,1,2,3));
     Game g(Sequence(3,2,2,4));
-    g.MakeGuess(Sequence(0,1,2,3));
+    g.MakeGuess(Sequence(2,2,4,2));
     /*
     for (int i = 0; i < Sequence::GetNumSequences(); i++)
     {
