@@ -230,15 +230,20 @@ public:
 		solution_(solution)
 	{
 	}
-
+	
+	bool IsSolved() const
+	{
+		return domain_.Size() == 1;
+	}
+	
 	void MakeGuess(const Sequence& guess_sequence)
 	{
 		guesses_.push_back(guess_sequence);
 		Guess& new_guess = guesses_.back();
 		new_guess.score_ = Score::CalculateScore(new_guess.guess_, solution_);
-        printf("Guess - ");
-        guess_sequence.Print();
-        printf(" score = %d,%d", new_guess.score_.right_position_, new_guess.score_.right_color_);
+        //printf("Guess - ");
+        //guess_sequence.Print();
+        //printf(" score = %d,%d", new_guess.score_.right_position_, new_guess.score_.right_color_);
 
         // Update the possible domain given the new guess and score
         if (guesses_.size() == 1)
@@ -249,8 +254,8 @@ public:
         {
             UpdateDomain(new_guess);
         }
-        printf(" domain(%d)", domain_.Size());
-        printf("\n");
+        //printf(" domain(%d)", domain_.Size());
+        //printf("\n");
     }
     
     // Given the current state of the game, returns the guess that will most dramatically reduce the domain size
@@ -258,16 +263,50 @@ public:
     {
     	// For every possible guess, see how much it will reduce the domain for each possible solution.
     	// Choose the guess that results in the smallest maximum domain size
+    	Game temp_dupe;
+    	const Game* reference_game = this;
+    	printf("Game domain size = %d\n", domain_.Size());
+    	if (domain_.Size() == 0)
+    	{
+    		temp_dupe = *this;
+    		temp_dupe.BuildDomain();
+    		reference_game = &temp_dupe;
+    	}
+    	printf("Ref game domain size = %d\n", reference_game->domain_.Size());
+    	Sequence best_sequence;
+    	int best_sequence_domain_size = Sequence::GetNumSequences() + 1;
     	for (int i = 0; i < Sequence::GetNumSequences(); i++)
     	{
     		Sequence guess = Sequence::GetSequenceFromIndex(i);
+    		int max_domain_index = 0;
     		std::vector<Game> games;
-    		for (int j = 0; j < domain_.Size(); j++)
+    		for (int j = 0; j < reference_game->domain_.Size(); j++)
     		{
-    			games.emplace_back(*this);
+    			games.emplace_back(*reference_game);
     			Game& g = games.back();
+    			g.solution_ = reference_game->domain_[j];
+    			g.MakeGuess(guess);
+    			if (g.domain_.Size() > games[max_domain_index].domain_.Size())
+    			{
+    				max_domain_index = j;
+    			}
+    		}
+    		
+    		assert(max_domain_index < games.size());
+    		const Game& best_game = games[max_domain_index];
+    		const Guess& best_guess = best_game.guesses_.back();
+    		const int best_domain_size = best_game.domain_.Size();
+    		
+    		if (best_domain_size < best_sequence_domain_size)
+    		{
+    			best_sequence = best_guess.guess_;
+    			best_sequence_domain_size = best_domain_size;
+	    		printf("best guess - ");
+	    		best_sequence.Print();
+	    		printf(" Domain size = %d\n", best_sequence_domain_size);
     		}
     	}
+    	return best_sequence;
     }
 	
 protected:
@@ -275,6 +314,15 @@ protected:
     void BuildDomain()
     {
         domain_.Clear();
+        
+        // If no guesses, add all sequences to domain
+        if (guesses_.size() == 0)
+        {
+            for (int i = 0; i < Sequence::GetNumSequences(); i++)
+            {
+                domain_.Add(Sequence::GetSequenceFromIndex(i));
+            }
+        }
 
         // Calculate the domain from the first guess
         if (guesses_.size() > 0)
@@ -313,26 +361,6 @@ protected:
             }
         }
     }
-    
-	Sequence FindBestGuess_poop() const
-	{
-	    for (int i = 0; i < Sequence::GetNumSequences(); i++)
-	    {
-	        Sequence guess = Sequence::GetSequenceFromIndex(i);
-	    }
-	    // A* problem space
-	    // - Decision is sequence to guess
-	    // - Heuristic is number of guesses; then domain size
-	    // - Domain size of 1 is success
-	
-	    // Make a game for each potential solution
-	    std::vector<Game> games;
-	    for (int i = 0; i < Sequence::GetNumSequences(); i++)
-	    {
-	        games.push_back(Game(Sequence::GetSequenceFromIndex(i)));
-	    }
-	    return Sequence();
-	}
 	
 protected:
 	Sequence solution_;
@@ -344,10 +372,17 @@ protected:
 int main()
 {
     printf("Num Sequences = %d\n", Sequence::GetNumSequences());
-    
-    Game g(Sequence(2, 2, 3, 4));
-    g.MakeGuess(Sequence(1, 3, 2, 0));
-    g.MakeGuess(Sequence(2, 3, 4, 2));
-    Sequence s = g.FindBestGuess();
-    s.Print();
+    Game g(Sequence(5, 5, 5, 5));
+    g.MakeGuess(Sequence(5, 2, 1, 0));
+    //g.MakeGuess(Sequence(5, 5, 2, 1));
+    //g.MakeGuess(Sequence(4, 0, 0, 5));
+    //g.MakeGuess(Sequence(1, 5, 5, 5));
+    //g.MakeGuess(Sequence(4, 5, 5, 5));
+    while (g.IsSolved() == false)
+    {
+    	Sequence next_guess = g.FindBestGuess();
+    	next_guess.Print();
+    	printf("\n");
+    	g.MakeGuess(next_guess);
+    }
 }
