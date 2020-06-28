@@ -252,6 +252,23 @@ public:
         printf(" domain(%d)", domain_.Size());
         printf("\n");
     }
+    
+    // Given the current state of the game, returns the guess that will most dramatically reduce the domain size
+    Sequence FindBestGuess() const
+    {
+    	// For every possible guess, see how much it will reduce the domain for each possible solution.
+    	// Choose the guess that results in the smallest maximum domain size
+    	for (int i = 0; i < Sequence::GetNumSequences(); i++)
+    	{
+    		Sequence guess = Sequence::GetSequenceFromIndex(i);
+    		std::vector<Game> games;
+    		for (int j = 0; j < domain_.Size(); j++)
+    		{
+    			games.emplace_back(*this);
+    			Game& g = games.back();
+    		}
+    	}
+    }
 	
 protected:
     // Builds domain based on what's in the guesses_ list
@@ -296,61 +313,33 @@ protected:
             }
         }
     }
-
+    
+	Sequence FindBestGuess_poop() const
+	{
+	    for (int i = 0; i < Sequence::GetNumSequences(); i++)
+	    {
+	        Sequence guess = Sequence::GetSequenceFromIndex(i);
+	    }
+	    // A* problem space
+	    // - Decision is sequence to guess
+	    // - Heuristic is number of guesses; then domain size
+	    // - Domain size of 1 is success
+	
+	    // Make a game for each potential solution
+	    std::vector<Game> games;
+	    for (int i = 0; i < Sequence::GetNumSequences(); i++)
+	    {
+	        games.push_back(Game(Sequence::GetSequenceFromIndex(i)));
+	    }
+	    return Sequence();
+	}
+	
 protected:
 	Sequence solution_;
 	std::vector<Guess> guesses_;
     // What sequences are possible given the list of guesses
     Domain domain_;
 };
-
-void EvaluateGuess(const Sequence& guess)
-{
-    // A* problem space
-    // - Decision is sequence to guess
-    // - Heuristic is number of guesses; then domain size
-    // - Domain size of 1 is success
-
-    // Make a game for each potential solution
-    std::vector<Game> games;
-    for (int i = 0; i < Sequence::GetNumSequences(); i++)
-    {
-        games.push_back(Game(Sequence::GetSequenceFromIndex(i)));
-    }
-
-    // Evaluate how each game will go given the passed in guess
-    for (auto it = games.begin(); it < games.end(); it++)
-    {
-        it->MakeGuess(guess);
-    }
-
-/*
-    // Count how many solutions with each score there are
-    std::map<Score, int> histogram;
-    for (int j = 0; j < Sequence::GetNumSequences(); j++)
-    {
-        Sequence solution = Sequence::GetSequenceFromIndex(j);
-        Score s = Score::CalculateScore(guess, solution);
-        histogram[s]++;
-    }
-    guess.Print();
-    printf(" - ");
-    for (auto it = histogram.begin(); it != histogram.end(); it++)
-    {
-        printf("(%d,%d):%d ", it->first.right_position_, it->first.right_color_, it->second);
-    }
-    printf("\n");
-*/
-}
-
-void FindBestGuess()
-{
-    for (int i = 0; i < Sequence::GetNumSequences(); i++)
-    {
-        Sequence guess = Sequence::GetSequenceFromIndex(i);
-        EvaluateGuess(guess);
-    }
-}
 
 int main()
 {
@@ -359,21 +348,6 @@ int main()
     Game g(Sequence(2, 2, 3, 4));
     g.MakeGuess(Sequence(1, 3, 2, 0));
     g.MakeGuess(Sequence(2, 3, 4, 2));
-    g.MakeGuess(Sequence(3, 1, 5, 2));
-
-    //EvaluateGuess(Sequence(0, 1, 2, 3));
-
-    /*
-    Guess test_guess(Sequence(0,1,2,3));
-    Game g(Sequence(2,4,5,5));
-    g.MakeGuess(Sequence(1,2,3,4));
-    */
-    /*
-    for (int i = 0; i < Sequence::GetNumSequences(); i++)
-    {
-        Sequence s = Sequence::GetSequenceFromIndex(i);
-        Game g(s);
-        s.Print();
-    }
-    */
+    Sequence s = g.FindBestGuess();
+    s.Print();
 }
