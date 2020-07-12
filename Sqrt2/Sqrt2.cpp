@@ -1,26 +1,21 @@
 #include <stdio.h>
-const int k=1001;
+#define k 251
+#define w 10000
 int n[k]={1};
 int o[2*k];
-
-void p(int* n, int d)
-{
-	for(int i=0;i<d;i++)
-		printf("%d",n[i]);
-	printf("\n");
-}
+int i;
 
 int s()
 {
 	for(int b=0;b<2*k;o[b++]=0);
-	for(int b=k-1;b>=0;b--)
+	for(int b=i;b>=0;b--)
 	{
 		int c=0;
-		for(int a=k-1;a>=0;a--)
+		for(int a=i;a>=0;a--)
 		{
 			int v=o[a+b]+n[a]*n[b]+c;
-			o[a+b]=v%10;
-			c=v/10;
+			o[a+b]=v%w;
+			c=v/w;
 		}
 		o[b-1]+=c;
 	}
@@ -29,12 +24,19 @@ int s()
 
 int main()
 {
-	for(int i=1;i<k;i++)
+	printf("1.");
+	for(i=1;i<k;i++)
 	{
-		for(n[i]=9;s()>1;n[i]--)
+		int a=0;
+		for(int b=w;a+1<b;)
 		{
+			int m=(a+b)/2;
+			n[i]=m;
+			int r=s();
+			(r>1?b:a)=m;
 		}
+		n[i]=a;
+		printf("%04d",n[i]);
 	}
-	p(n,k);
 	return 0;
 }
