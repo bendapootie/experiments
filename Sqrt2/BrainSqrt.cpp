@@ -44,6 +44,7 @@ public:
 	bool Run(int num_steps = 0)
 	{
 		int steps_taken = 0;
+		int search_dir = 1;
 		while (steps_taken != num_steps || num_steps == 0)
 		{
 			switch (*_ip)
@@ -52,29 +53,38 @@ public:
 				++_dp;
 				steps_taken++;
 				break;
+
 			case '<':
 				--_dp;
 				steps_taken++;
 				break;
+
 			case '+':
 				++(*_dp);
 				steps_taken++;
 				break;
+
 			case '-':
 				--(*_dp);
 				steps_taken++;
 				break;
+
 			case '.':
 				putchar(*_dp);
 				steps_taken++;
 				break;
+
 			case ',':
 				*_dp = getchar();
 				steps_taken++;
 				break;
+
+			case ']':
+				search_dir = -1;
+				// fall through...
 			case '[':
 				// if data is zero, jump forward to matching ']'
-				if (*_dp == 0)
+				if ((*_dp != 0 && *_ip == ']') || (*_dp == 0  && *_ip =='['))
 				{
 					int index = _ip - _instructions;
 					int& jump_delta = _jump_table[index];
@@ -88,14 +98,14 @@ public:
 						char* search = _ip;
 						do
 						{
-							search++;
+							search += search_dir;
 							if (*search == ']')
 							{
-								depth--;
+								depth -= search_dir;
 							}
 							else if (*search == '[')
 							{
-								depth++;
+								depth += search_dir;
 							}
 						} while (depth != 0);
 
@@ -103,48 +113,19 @@ public:
 						_ip += jump_delta;
 					}
 				}
+				search_dir = 1;
 				steps_taken++;
 				break;
-			case ']':
-				// if data is nonzero, jump backward to matching '['
-				if (*_dp != 0)
-				{
-					int index = _ip - _instructions;
- 					int& jump_delta = _jump_table[index];
-					if (jump_delta != 0)
-					{
-						_ip += jump_delta;
-					}
-					else
-					{
-						int depth = 1;
-						char* search = _ip;
-						do
-						{
-							search--;
-							if (*search == '[')
-							{
-								depth--;
-							}
-							else if (*search == ']')
-							{
-								depth++;
-							}
-						} while (depth != 0);
 
-						jump_delta = search - _ip;
-						_ip += jump_delta;
-					}
-				}
-				steps_taken++;
-				break;
 			case 0:
 				// Reached end of the input
 				return false;
+
 			case '#':
 				// todo - support breakpoints?
 				_ip = _ip;
 				break;
+
 			default:
 				// ignore all other characters
 				break;
