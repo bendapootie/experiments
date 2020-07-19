@@ -13,6 +13,10 @@
 #include <string>
 #include <map>
 
+// If 'USE_JUMP_TABLE' is defined, a simple jump table optimization will
+// be generated at the memory cost of an integer per instruction
+//#define USE_JUMP_TABLE
+
 const int kDefaultTapeSize = 30000;
 typedef unsigned char uint8;
 
@@ -33,9 +37,11 @@ public:
 		strcpy_s(_instructions, _instruction_size, instructions);
 		_ip = _instructions;
 
+#ifdef USE_JUMP_TABLE
 		// Initialize jump table to empty
 		_jump_table = new int[_instruction_size];
 		memset(_jump_table, 0, sizeof(*_jump_table) * _instruction_size);
+#endif // #ifdef USE_JUMP_TABLE
 	}
 
 	// Executes one instruction
@@ -86,8 +92,12 @@ public:
 				// if data is zero, jump forward to matching ']'
 				if ((*_dp != 0 && *_ip == ']') || (*_dp == 0  && *_ip =='['))
 				{
-					int index = _ip - _instructions;
+					int index = (int)(_ip - _instructions);
+#ifdef USE_JUMP_TABLE
 					int& jump_delta = _jump_table[index];
+#else // #ifdef USE_JUMP_TABLE
+					int jump_delta = 0;
+#endif // #ifdef USE_JUMP_TABLE
 					if (jump_delta != 0)
 					{
 						_ip += jump_delta;
@@ -109,7 +119,7 @@ public:
 							}
 						} while (depth != 0);
 
-						jump_delta = search - _ip;
+						jump_delta = (int)(search - _ip);
 						_ip += jump_delta;
 					}
 				}
@@ -152,8 +162,10 @@ private:
 	char* _ip = nullptr; // instruction pointer
 	size_t _instruction_size = 0;
 
+#ifdef USE_JUMP_TABLE
 	// lookup to map index of '[' and ']' to the delta to find its counterpart
 	int* _jump_table = nullptr;
+#endif // #ifdef USE_JUMP_TABLE
 };
 
 std::string CalcDelta(int delta)
@@ -183,8 +195,8 @@ std::string FirstPassSqrt2()
 	BF(">>>-[>+<-----]>+");
 	// 0 0 0 0 (52) 0 0 0
 
-	// loop 85 times
-	BF("<<<<-[>+<---]>[");
+	// loop 3 times
+	BF("<<<+++[");
 	// 0 (85) 0 0 52 0 0 0
 	{
 		// loop 255 times
