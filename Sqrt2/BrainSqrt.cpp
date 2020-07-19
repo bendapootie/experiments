@@ -13,11 +13,16 @@
 #include <string>
 #include <map>
 
+// Define 'USE_SECURE_STRINGS' if safe string functions are available
+#if __STDC_WANT_SECURE_LIB__
+#define USE_SECURE_STRINGS
+#endif // #if __STDC_WANT_SECURE_LIB__
+
 // If 'USE_JUMP_TABLE' is defined, a simple jump table optimization will
 // be generated at the memory cost of an integer per instruction
 //#define USE_JUMP_TABLE
 
-const int kDefaultTapeSize = 30000;
+const int kDefaultTapeSize = 10000;
 typedef unsigned char uint8;
 
 class BFVM
@@ -34,7 +39,11 @@ public:
 		// Copy instruction buffer
 		_instruction_size = strlen(instructions) + 1;
 		_instructions = new char[_instruction_size];
+#ifdef USE_SECURE_STRINGS
 		strcpy_s(_instructions, _instruction_size, instructions);
+#else
+		strcpy(_instructions, instructions);
+#endif
 		_ip = _instructions;
 
 #ifdef USE_JUMP_TABLE
