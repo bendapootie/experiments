@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 #include <string>
-#include <map>
+#include <queue>
 
 // Define 'USE_SECURE_STRINGS' if safe string functions are available
 #if __STDC_WANT_SECURE_LIB__
@@ -24,6 +24,28 @@
 
 const int kDefaultTapeSize = 10000;
 typedef unsigned char uint8;
+typedef unsigned int uint32;
+
+class AStarNode
+{
+public:
+	AStarNode()
+	{
+	}
+};
+
+
+class AStar
+{
+public:
+	AStar()
+	{
+	}
+
+protected:
+	std::priority_queue<AStarNode> _queue;
+};
+
 
 class BFVM
 {
@@ -34,7 +56,7 @@ public:
 		_tape_size = tape_size;
 		_tape = new uint8[_tape_size];
 		memset(_tape, 0, sizeof(*_tape) * _tape_size);
-		_dp = _tape;
+		_dp = 0;
 
 		// Copy instruction buffer
 		_instruction_size = strlen(instructions) + 1;
@@ -44,7 +66,7 @@ public:
 #else
 		strcpy(_instructions, instructions);
 #endif
-		_ip = _instructions;
+		_ip = 0;
 
 #ifdef USE_JUMP_TABLE
 		// Initialize jump table to empty
@@ -62,35 +84,35 @@ public:
 		int search_dir = 1;
 		while (steps_taken != num_steps || num_steps == 0)
 		{
-			switch (*_ip)
+			switch (_instructions[_ip])
 			{
 			case '>':
-				++_dp;
+				_dp++;
 				steps_taken++;
 				break;
 
 			case '<':
-				--_dp;
+				_dp--;
 				steps_taken++;
 				break;
 
 			case '+':
-				++(*_dp);
+				_tape[_dp]++;
 				steps_taken++;
 				break;
 
 			case '-':
-				--(*_dp);
+				_tape[_dp]--;
 				steps_taken++;
 				break;
 
 			case '.':
-				putchar(*_dp);
+				putchar(_tape[_dp]);
 				steps_taken++;
 				break;
 
 			case ',':
-				*_dp = getchar();
+				_tape[_dp] = getchar();
 				steps_taken++;
 				break;
 
@@ -99,11 +121,11 @@ public:
 				// fall through...
 			case '[':
 				// if data is zero, jump forward to matching ']'
-				if ((*_dp != 0 && *_ip == ']') || (*_dp == 0  && *_ip =='['))
+				if ((_tape[_dp] != 0 && _instructions[_ip] == ']') ||
+					(_tape[_dp] == 0  && _instructions[_ip] =='['))
 				{
-					int index = (int)(_ip - _instructions);
 #ifdef USE_JUMP_TABLE
-					int& jump_delta = _jump_table[index];
+					int& jump_delta = _jump_table[_ip];
 #else // #ifdef USE_JUMP_TABLE
 					int jump_delta = 0;
 #endif // #ifdef USE_JUMP_TABLE
@@ -114,7 +136,7 @@ public:
 					else
 					{
 						int depth = 1;
-						char* search = _ip;
+						char* search = &_instructions[_ip];
 						do
 						{
 							search += search_dir;
@@ -128,7 +150,7 @@ public:
 							}
 						} while (depth != 0);
 
-						jump_delta = (int)(search - _ip);
+						jump_delta = (int)(search - &_instructions[_ip]);
 						_ip += jump_delta;
 					}
 				}
@@ -164,12 +186,12 @@ public:
 
 private:
 	uint8* _tape = nullptr;
-	uint8* _dp = nullptr;	// data pointer
 	size_t _tape_size = 0;
+	size_t _dp = 0;			// data pointer index
 
 	char* _instructions = nullptr;
-	char* _ip = nullptr; // instruction pointer
 	size_t _instruction_size = 0;
+	size_t _ip = 0;			// instruction pointer index
 
 #ifdef USE_JUMP_TABLE
 	// lookup to map index of '[' and ']' to the delta to find its counterpart
