@@ -226,7 +226,22 @@ public:
 		}
 		return true;
 	}
-
+	
+	void DebugTape(int min = 0, int count = 100) const
+	{
+		int chars_per_line = 5;
+		for (int i = 0; i < count; i++)
+		{
+			printf("%3d%s%1c%s%s",
+				_tape[i],
+				i == _tp ? "(" : "'",
+				_tape[i],
+				i == _tp ? ")" : "'",
+				i%chars_per_line == chars_per_line - 1?"\n":" ");
+		}
+		printf("\n");
+	}
+	
 	const std::string& GetOutput() const
 	{
 		return _output;
@@ -349,7 +364,7 @@ public:
 	BFVM* _vm = nullptr;
 };
 
-const float AStarNode::kEstimatedInstructionsPerOutput = 4.0f;
+const float AStarNode::kEstimatedInstructionsPerOutput = 3.0;
 
 
 class AStar
@@ -558,6 +573,9 @@ std::string FirstPassSqrt2()
 	BF("]>>>");
 	// 0 0 0 0 (52) 52 52 52 52 52 52 etc 52 52 0 0 0
 
+	// Make 4 2 5 8 2 5 8 2 5 8 etc
+	BF(">[-->+>++++>]<[<]");
+	// 0 0 0 (0) 52 50 53 56 50 53 56 etc
 
 	//BF("\n\n");
 
@@ -597,7 +615,8 @@ void TestAStar()
 	const char* bf_code_lots_of_4s = ">>>-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	const char* bf_code_lots_of_5s = ">>>-[>+<-----]>++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	const char* bf_code_lots_of_6s = ">>>-[>+<-----]>+++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
-	BFVM vm(bf_code_lots_of_5s, 10000, BFVM::OutputStyle::StdOutAndInteralBuffer);
+	const char* bf_code_4_258258 = ">>>-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>>[-->+>++++>]<[<]";
+	BFVM vm(bf_code_4_258258, 10000, BFVM::OutputStyle::StdOutAndInteralBuffer);
 	vm.Run();
 	AStar a;
 
@@ -622,4 +641,14 @@ int main(int argc, char *argv[])
 	//BFVM::TestClass();
 	TestAStar();
 	//FirstPassSqrt2();
+	
+	BFVM b(">>>-[>+<-----]>+");
+	b.Run();
+	b.DebugTape(0, 20);
+	b.GetMutableInstructions() += "<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
+	b.Run();
+	b.DebugTape(0, 20);
+	b.GetMutableInstructions() += ">[-->+>++++>]<[<]";
+	b.Run();
+	b.DebugTape(0, 20);
 }
