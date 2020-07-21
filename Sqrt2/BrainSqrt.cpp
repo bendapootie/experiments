@@ -593,8 +593,10 @@ std::string FirstPassSqrt2()
 void TestAStar()
 {
 	const char* bf_code_4 = ">>>-[>+<-----]>+";
+	const char* bf_code_lots_of_3s = ">>>-[>+<-----]><<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	const char* bf_code_lots_of_4s = ">>>-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	const char* bf_code_lots_of_5s = ">>>-[>+<-----]>++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
+	const char* bf_code_lots_of_6s = ">>>-[>+<-----]>+++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	BFVM vm(bf_code_lots_of_5s, 10000, BFVM::OutputStyle::StdOutAndInteralBuffer);
 	vm.Run();
 	AStar a;
