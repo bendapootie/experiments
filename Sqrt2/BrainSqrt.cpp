@@ -129,13 +129,20 @@ public:
 			{
 			case '>':
 				_tp++;
-				assert(_tp < _tape_size);
+				if (_tp >= _tape_size)
+				{
+					_tp = 0;
+				}
 				steps_taken++;
 				break;
 
 			case '<':
 				_tp--;
-				assert(_tp < _tape_size);
+				// _tp is unsigned and will be very large if it tries to go negative
+				if (_tp >= _tape_size)
+				{
+					_tp = _tape_size - 1;
+				}
 				steps_taken++;
 				break;
 
@@ -250,7 +257,7 @@ public:
 	// Returns the data value currently pointed to by the tape pointer, with an optional offset
 	uint8 GetData(int offset = 0) const
 	{
-		return _tape[_tp + offset];
+		return _tape[(_tp + offset) % _tape_size];
 	}
 
 	const uint8* GetTape() const
@@ -364,8 +371,6 @@ public:
 	BFVM* _vm = nullptr;
 };
 
-const float AStarNode::kEstimatedInstructionsPerOutput = 3.0;
-
 
 class AStar
 {
@@ -430,8 +435,12 @@ public:
 		{
 			if ((int)top._vm->GetTapePointer() >= -i)
 			{
-				AStarNode next_node = GenerateTestNode(top, next_output_char, i);
-				AddNode(next_node);
+				AStarNode next_node;
+				bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
+				if (use_node)
+				{
+					AddNode(next_node);
+				}
 			}
 		}
 
@@ -455,13 +464,13 @@ protected:
 		_vm_cache.erase(it);
 	}
 
-	AStarNode GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos)
+	bool GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos, AStarNode& out_new_node)
 	{
 		// TODO: Verify we're not going to go off the tape (avoid BF code that wraps around)
 		assert((int)previous._vm->GetTapePointer() >= -delta_pos);
 
-		AStarNode new_node = CloneNode(previous._vm);
-		BFVM& vm_ref = *new_node._vm;
+		out_new_node = CloneNode(previous._vm);
+		BFVM& vm_ref = *out_new_node._vm;
 
 		// Add instructions to move the data pointer based on 'delta_pos'
 		std::string& instructions_ref = vm_ref.GetMutableInstructions();
@@ -474,6 +483,12 @@ protected:
 		// Add instructions to modify data at this position in the tape to match 'next_output'
 		// TODO: Support wraparound?
 		uint8 data = vm_ref.GetData(delta_pos);
+		if (((next_output > data) && (next_output - data > 10)) ||
+			((next_output < data) && (data - next_output > 10)))
+		{
+			// data is too far away to consider this node
+			return false;
+		}
 		increment = (next_output > data) ? 1 : -1;
 		for (int i = data; i != next_output; i += increment)
 		{
@@ -488,7 +503,7 @@ protected:
 
 		assert(vm_ref.GetOutput().back() == next_output);
 
-		return new_node;
+		return true;
 	}
 
 	// TODO: The existance of this function makes me sad :(
@@ -608,15 +623,42 @@ std::string FirstPassSqrt2()
 #undef BF
 }
 
+
+const float AStarNode::kEstimatedInstructionsPerOutput = 3.0f;
+
 void TestAStar()
 {
-	const char* bf_code_4 = ">>>-[>+<-----]>+";
-	const char* bf_code_lots_of_3s = ">>>-[>+<-----]><<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
-	const char* bf_code_lots_of_4s = ">>>-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
-	const char* bf_code_lots_of_5s = ">>>-[>+<-----]>++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
-	const char* bf_code_lots_of_6s = ">>>-[>+<-----]>+++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
-	const char* bf_code_4_258258 = ">>>-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>>[-->+>++++>]<[<]";
-	BFVM vm(bf_code_4_258258, 5000, BFVM::OutputStyle::StdOutAndInteralBuffer);
+	// bf_code_3_3
+	// 4.0 = 3042 characters
+
+	// bf_code_lots_of_5s
+	// 3.0 = 2627 characters
+	// 2.7 = 2610 characters
+
+	// bf_code_4_258258
+	// 3.0 = 2626 characters
+	// 2.9 = 2612 characters
+	// 2.8 = 2619 characters
+	// 2.7 = 2608 characters
+	// 2.6 = 2559 characters
+	// 2.55 = 2543 characters
+	// "-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>>[-->+>++++>]<[<]>>-.---.<.>+++.<.>+.-.++.>.+.>>.+.<-.>.---.>>+.<.<.>-.>-..<<.+.<<.++..-.<-.<.>.--.>++.>-.<.-.<.>-.+.>-.+.<+.>.+.>.>>.-.--.<-.<<.-.<.>--.<-.<.>-.>-.>.<<.-..+.++.--.>.<.++..<.>--.>.-.++.<.+.>.++.>+.-.-.<+.>.>.<<+..---.>.>.>>>>.-.>>.--.+.-.<.<.-.<-.<-.<.++.>+.<.<.<<.>.+.>.>+.>>.>.>.>.---.>+.>-.+..<.--.<.<.<<.<<+.>.>.<<-.<.+++.<-.<..<.>.>.>>-.>+.<.>-.-.+.>>.<..<-.+.-.>.<<++.<+.<.>>...>>-.>-.+++.<.<.>+.<.++.-...<<-..-.>.>.<--.<.<.>..>++.>.<--.<..>.++...<.<.<.>.+..>.>>.>>-.+.>.>.>-.<.>-.++.>-.>-.<<.<.+.-.<<+.<+..>..>>>.>.<-.<.<<<.>.--.>>.<.<.<-.+.<+.+.+.<.>>+.>+.<.>>.>.>>.>.>-.>.>>.<.<-.<.<.<.<++.--.--.<.<<..+.>-.<.-.<.>>-.<+.<-..---.+.-.>.<.+.>>.<<+.>-.<.-.>>.<.-.>>+.>.-.-.<.+++.+.<.<+.<.>+.--.-.<-.>.>.+++.<.<.>+.++..>>.>.<.>>.>.<-.>>.++.-.+.>>+.>.-.>.>.<+..<++.<.-.-.++.>>..--.<-.>-.<..<<+.<.---.<.<.>>.>.--.>.>>+.>.<+.>.>.>+.<<.<.+.<+.<-.<.>.-.<<+.<.+.>.<.<.<.<<<-.-..<<.<..<+.<.>+.<+.>>.-.<<+.<..<-.>.>-..--.<--..<.--.>.>+.>>.>.<<.<-.+..<.<.-.>.>>.---.++.<-.<.+.>.>>.>-.<+.-..>.>>.<-.>-.<-.<-.<.<.>.+...<+.<.>-.>..<<..<.>>++.<+.<+.<<.<-.>.>>.-..>-.++.>-..>.>>.<.>+.>.>+.>.-.>.<.+++.+.>.+.>.>+.>+.>>.>.<--.>.>.>+.<<.<-.<<.<.<++.-.>-.>.>.<<.>-.+.<-.++.<<.>...>-.>+.<+...++.-.<.<.>-.+.<.>-.+.>--.+.<.<<.<+.+.>.+.-.-.>-.+.<.>-.+.>>-.<+.>>-..<.>>.>>.>-.>.>>+.<.<.<-.+.++.<.>.<.--..<.<<<.-.<.-.>>.<-..+.<+.--.>.--.>.---.+.++.--.>.<.>.>.>>.>.>.>--.>-.>-.>.--.<..>+.>-.-.++.>.<.-.>.-.<.<.>+..+.-.>.>--.>+.>+.<.+..-.-.--.>--.>.--.++..>+.--.>.<+.-..<<.>--.+.>+.>.<.>..<<-.+.<-.<-.<.<.<.>+.<-.<<.<.<<+.>..<<.-.<<.<+..<<.>..>.<.>>+.>+..<.>-..++..>.>>.-.>.+.>+.<--.<<.-..+.<--.>.>>+..-.>-.<<-.<.<-.<.-.>>.<-.>-.>..>.<+..>.<<..>+.>+.>-.<.>.++.>.>+.>-.>.<+.>>.>.<+.<.+.-..<<.>+.<-.<<.<+.>.-.>-.>.<..>-.<+.<+.<+.--.>.>-.>.+.--.-.<<+.<.<<.+.--.>.<.+.>.<+.<-.<+.--.>+.-.<.+.>.<<-.<.<<.<+.>.++..>+.>+.<.>.>.<.>++.-.>..>++.<.+.>-..<+.<<.-..<-.<<+.<.++.>.+.>>.<+.>+.>..>>..>-..++..<-.<+.<++.<..+.<--.<.>.<--.>-.>.<+.>.<+.>--.>.>.>-.++.>+.>-.>-.-.<.+.---.+.--.>.>.<.+.<+++.<.<-.<.-.>.>>.<.<.<.<.+.<.<-.<<.>++.++.++..<<.<<.--.>.>>.>.>>.>+.<.<.-.<<.>..>.<.>--.<<-.<.>>-.>>.<.<-.>+.+.-.-.<+.<+.<.<.>>.>.+..--.<-.>+.>>.<-.-.>>.>.<<.<.++.<-.>..--.>.>.>>>-.>+.<.<.>>.>.+.>.>-.<+.>+.>.<<.<.-.<-.>.-..>-..+.>.-.<-.<++.-.>+.<-.>.>+.>+..+.>-.<.++.<.<-..<+.>-.+.<.<-.<.<<.>-.>+.>>.>.<<.+.>.-.<<<.<.<<.<+.>>.<.<..<.<.-.>..>.<<.>++.<+.>-.>-.<.--.+++.<<.>.<+.<.>>.-.+.<<.>>....<++.<+.<-.>+.>>.<.-.>>-.<.>-.>.>>.>..+.<--.---.>.--.>.<+.-.<.>-.>.>>.<-.-.<.>+.-.+.>.<..>+.<<.>-.>-.>>.>-..<.>-.<--."
+	
+	// bf_code_247
+	// 2.7 = 2619
+
+	// bf_code_4_258258
+	// 2.6 = 2605 characters
+
+	const char* bf_code_3 = "-[>+<-----]>";
+	const char* bf_code_3_3 = "-[>+<-----]>[->+>+<<]";
+	const char* bf_code_lots_of_3s = "-[>+<-----]>[->+>+<<]<++++++[->>[>]<[->+>+<<]>>[-<<+>>]<[<]<]";
+	std::string bf_code_lots_of_4s = "-[>+<-----]>+[->+>+<<]<++++++[->>[>]<[->+>+<<]>>[-<<+>>]<[<]<]";
+	const char* bf_code_lots_of_5s = "-[>+<-----]>++[->+>+<<]<++++++[->>[>]<[->+>+<<]>>[-<<+>>]<[<]<]";
+	const char* bf_code_lots_of_6s = "-[>+<-----]>+++[->+>+<<]<++++++[->>[>]<[->+>+<<]>>[-<<+>>]<[<]<]";
+	std::string bf_code_2468 = bf_code_lots_of_4s + ">>" + "[-->>++>++++>]";
+	std::string bf_code_4_258258 = "-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>>[-->+>++++>]<[<]";
+	BFVM vm(bf_code_4_258258.c_str(), 1000, BFVM::OutputStyle::StdOutAndInteralBuffer);
 	vm.Run();
 	AStar a;
 
@@ -643,16 +685,37 @@ int main(int argc, char *argv[])
 	//FirstPassSqrt2();
 	
 	/*
+	// (0) --> (255)
+	std::string bf_code_make_255 = "-";
+
 	// (0) 0 --> 0 (51)
 	std::string bf_code_ascii_3 = "-[>+<-----]>";
-	// 0 (x) 0 0 ... --> 
-	std::string bf_code_copy_255 = "[-[>]+[<]>]";
-	
+
+	// (x) 0 0 --> (0) x x
+	std::string bf_code_make_copy("[->+>+<<]");
+
 	std::vector<std::string> bf_chunks;
+
+	// 0 (51) 0 0
 	bf_chunks.push_back(bf_code_ascii_3);
-	bf_chunks.push_back(bf_code_copy_255);
-	bf_chunks.push_back(bf_code_copy_255);
-	bf_chunks.push_back(bf_code_copy_255);
+
+	// 0 (0) 51 51
+	bf_chunks.push_back(bf_code_make_copy);
+
+	// (255) 0 51 51
+	bf_chunks.push_back("<++++++"); // TODO: Switch this to "<-" to make a 255
+
+	bf_chunks.push_back("[->>[>]<" + bf_code_make_copy);
+	{
+		bf_chunks.push_back(">>[-<<+>>]");
+	}
+	bf_chunks.push_back("<[<]<]");
+
+	bf_chunks.push_back(">>[-->+>++++>]<[<]");
+
+	//bf_chunks.push_back(bf_code_copy_255);
+	//bf_chunks.push_back(bf_code_copy_255);
+	//bf_chunks.push_back(bf_code_copy_255);
 	
 	BFVM b("");
 	for (int i = 0; i <bf_chunks.size(); i++)
@@ -662,6 +725,7 @@ int main(int argc, char *argv[])
 		b.Run();
 		b.DebugTape(0, 20);
 	}
+	printf("%s\n", b.GetInstructions().c_str());
 	/*
 	b.GetMutableInstructions() += "<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	b.Run();
@@ -669,5 +733,5 @@ int main(int argc, char *argv[])
 	b.GetMutableInstructions() += ">[-->+>++++>]<[<]";
 	b.Run();
 	b.DebugTape(0, 20);
-	//*/
+	*/
 }
