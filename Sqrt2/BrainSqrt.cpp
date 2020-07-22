@@ -616,7 +616,7 @@ void TestAStar()
 	const char* bf_code_lots_of_5s = ">>>-[>+<-----]>++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	const char* bf_code_lots_of_6s = ">>>-[>+<-----]>+++<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	const char* bf_code_4_258258 = ">>>-[>+<-----]>+<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>>[-->+>++++>]<[<]";
-	BFVM vm(bf_code_4_258258, 10000, BFVM::OutputStyle::StdOutAndInteralBuffer);
+	BFVM vm(bf_code_4_258258, 5000, BFVM::OutputStyle::StdOutAndInteralBuffer);
 	vm.Run();
 	AStar a;
 
@@ -642,13 +642,32 @@ int main(int argc, char *argv[])
 	TestAStar();
 	//FirstPassSqrt2();
 	
-	BFVM b(">>>-[>+<-----]>+");
-	b.Run();
-	b.DebugTape(0, 20);
+	/*
+	// (0) 0 --> 0 (51)
+	std::string bf_code_ascii_3 = "-[>+<-----]>";
+	// 0 (x) 0 0 ... --> 
+	std::string bf_code_copy_255 = "[-[>]+[<]>]";
+	
+	std::vector<std::string> bf_chunks;
+	bf_chunks.push_back(bf_code_ascii_3);
+	bf_chunks.push_back(bf_code_copy_255);
+	bf_chunks.push_back(bf_code_copy_255);
+	bf_chunks.push_back(bf_code_copy_255);
+	
+	BFVM b("");
+	for (int i = 0; i <bf_chunks.size(); i++)
+	{
+		printf("%s\n", bf_chunks[i].c_str());
+		b.GetMutableInstructions() += bf_chunks[i];
+		b.Run();
+		b.DebugTape(0, 20);
+	}
+	/*
 	b.GetMutableInstructions() += "<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
 	b.Run();
 	b.DebugTape(0, 20);
 	b.GetMutableInstructions() += ">[-->+>++++>]<[<]";
 	b.Run();
 	b.DebugTape(0, 20);
+	//*/
 }
