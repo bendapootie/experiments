@@ -1,13 +1,16 @@
 // Program to help generate BrainFuck code that outputs
 // the square root of 2 to 1000 decimal places
 
-
-
 #include <stdio.h>
 #include <string>
 #include <queue>
 #include <assert.h>
 #include <set>
+
+const int kDefaultTapeSize = 30000;
+typedef unsigned char uint8;
+typedef unsigned int uint32;
+
 
 // If 'USE_JUMP_TABLE' is defined, a simple jump table optimization will
 // be generated at the memory cost of an integer per instruction
@@ -16,8 +19,14 @@
 // (0) --> (255)
 std::string BF_MAKE_255 = "-";
 
+// (0) 0 --> 0 (48)
+std::string BF_ASCII_0 = "-[>+<-----]>---";
+
 // (0) 0 --> 0 (49)
 std::string BF_ASCII_1 = "-[>+<-----]>--";
+
+// (0) 0 --> 0 (50)
+std::string BF_ASCII_2 = "-[>+<-----]>-";
 
 // (0) 0 --> 0 (51)
 std::string BF_ASCII_3 = "-[>+<-----]>";
@@ -30,6 +39,15 @@ std::string BF_ASCII_5 = "-[>+<-----]>++";
 
 // (0) 0 --> 0 (54)
 std::string BF_ASCII_6 = "-[>+<-----]>+++";
+
+// (0) 0 0 0 --> 0 0 0 (55)
+std::string BF_ASCII_7 = ">-[++>+[+<]>]>-";
+
+// (0) 0 0 0 --> 0 0 0 (56)
+std::string BF_ASCII_8 = ">-[++>+[+<]>]>";
+
+// (0) 0 0 0 --> 0 0 0 (57)
+std::string BF_ASCII_9 = ">-[++>+[+<]>]>+";
 
 // (x) 0 0 --> (0) x x
 std::string BF_COPY_2X("[->+>+<<]");
@@ -65,10 +83,7 @@ std::string BF_LOTS_OF_5s = BF_ASCII_5 + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
 // 0 (0) 0 0 ... --> (0) 0 6 6 6 6 6 ... 6 6 6 0
 std::string BF_LOTS_OF_6s = BF_ASCII_6 + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
 
-
-const int kDefaultTapeSize = 30000;
-typedef unsigned char uint8;
-typedef unsigned int uint32;
+std::string SQRT_2 = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
 
 class BFVM
 {
@@ -443,7 +458,24 @@ public:
 
 	bool IsFinished() const
 	{
-		return _queue.empty() || _queue.top()._vm->GetOutput().size() == _target_output.size();
+		return _queue.empty() ||
+			(_queue.top()._vm->GetOutput().size() == _target_output.size()) ||
+			((_max_num_nodes > 0) && (_num_nodes_processed > _max_num_nodes));
+	}
+
+	bool Succeeded() const
+	{
+		return IsFinished() && ((_max_num_nodes == 0) || (_num_nodes_processed < _max_num_nodes));
+	}
+
+	int GetNumNodesProcessed() const
+	{
+		return _num_nodes_processed;
+	}
+
+	void SetMaxNumNodesToProcess(int max_num_nodes)
+	{
+		_max_num_nodes = max_num_nodes;
 	}
 
 	void SetTargetOutput(std::string target_output)
@@ -494,6 +526,8 @@ public:
 		// DIRTY: We're done with the VM associated with the top node; clean it up
 		// TODO: Replace this with refcounting?
 		FreeVM(top._vm);
+
+		_num_nodes_processed++;
 	}
 
 protected:
@@ -573,6 +607,8 @@ protected:
 	std::set<BFVM*> _vm_cache;
 	std::priority_queue<AStarNode> _queue;
 	std::string _target_output;
+	int _num_nodes_processed = 0;
+	int _max_num_nodes = 0;
 };
 
 
@@ -595,7 +631,7 @@ std::string CalcDelta(int delta)
 std::string FirstPassSqrt2()
 {
 #define BF(s) bf += s
-	const char* s = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
+	const char* s = SQRT_2.c_str();
 	std::string bf = "";
 
 	// Fill data stream with ascii 4 and leave pointer at right
@@ -670,38 +706,127 @@ std::string FirstPassSqrt2()
 #undef BF
 }
 
-// 2.5 = 555
-// 2.4 = 553
+std::string GetBFAsciiCodeForDigit(int digit)
+{
+	switch (digit)
+	{
+	case 0: return BF_ASCII_0;
+	case 1:	return BF_ASCII_1;
+	case 2:	return BF_ASCII_2;
+	case 3:	return BF_ASCII_3;
+	case 4:	return BF_ASCII_4;
+	case 5:	return BF_ASCII_5;
+	case 6:	return BF_ASCII_6;
+	case 7:	return BF_ASCII_7;
+	case 8:	return BF_ASCII_8;
+	case 9:	return BF_ASCII_9;
+	}
+	assert(false);
+	return "";
+}
+
+// Returns the BF code to generate a tape with a pattern 255 long of the repeating sequence given
+// ie. passing in "38" will return code to generate '3' '8' '3' '8' '3' '8' ..... '3' '8'
+std::string BuildBFPattern(int pattern)
+{
+	// Get list of digits in pattern (in reverse order)
+	std::vector<int> digits;
+	int n = pattern;
+	int digit_sum = 0;
+	while (n > 0)
+	{
+		digits.push_back(n % 10);
+		digit_sum += n % 10;
+		n = n / 10;
+	}
+
+	// Rather than being smart, just build ten versions of the code to
+	// generate the pattern and pick the one that's the shortest
+	std::string output_string = "";
+	for (int base_digit = 0; base_digit < 10; base_digit++)
+	{
+		// Start with code to make 255 copies of the average value
+		std::string potential_output_string = GetBFAsciiCodeForDigit(base_digit) + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
+
+		// Loop through list backwards since the list is backwards
+		// and build the pattern based on difference from the average
+		potential_output_string += ">>[";
+		for (int i = (int)digits.size() - 1; i >= 0; i--)
+		{
+			int increment = digits[i] > base_digit ? 1 : -1;
+			for (int j = base_digit; j != digits[i]; j += increment)
+			{
+				potential_output_string += digits[i] > base_digit ? "+" : "-";
+			}
+			potential_output_string += ">";
+		}
+		potential_output_string += "]";
+
+		if (output_string.size() == 0 || (potential_output_string.size() < output_string.size()))
+		{
+			output_string = potential_output_string;
+		}
+	}
+
+	return output_string;
+}
+
 const float AStarNode::kEstimatedInstructionsPerOutput = 3.0f;
 
 void TestAStar()
 {
-	std::string BF_PATTERN_2468 = BF_LOTS_OF_4s + ">>" + "[-->>++>++++>]";
-	std::string BF_PATTERN_258 = BF_LOTS_OF_5s + ">>" + "[--->>+++>]";
-	std::string BF_PATTERN_27 = BF_LOTS_OF_5s + ">>" + "[--->++>]";
-	std::string BF_PATTERN_28 = BF_LOTS_OF_5s + ">>" + "[--->+++>]";
-	std::string BF_PATTERN_36 = BF_LOTS_OF_5s + ">>" + "[-->+>]";
+	const int kMaxNodesToProcess = 100000;
 
-	std::string BF_FIRST_100 = BF_PATTERN_258 + "<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.>+.<.---.<+.<.>>.<<-.>-..>.+.>-.>..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.--.>++.>.-.>.>>.>.<<.<<+.<.--.>.-..+.>.<.<++.>.>..>.<<.<.-.++.>.+.<.<+.<--.-.-.>+.<.<+.<..<.>>>.<.<.-.<.<+.+.-.-.<-.-.--.>-.>.>.>-.<.";
-	std::string BF_NEXT_100 = "-[>+<-----]>++<<-[->>[>]<[->+>+<<]>>[-<<+>>]<[<]<]>>[--->>+++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.>+.<.---.<+.<.>>.<<-.>-..>.+.>-.>..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.--.>++.>.-.>.>>.>.<<.<<+.<.--.>.-..+.>.<.<++.>.>..>.<<.<.-.++.>.+.<.<+.<--.-.-.>+.<.<+.<..<.>>>.<.<.-.<.<+.+.-.-.<-.-.--.>-.>.>.>-.<.>+.++.>.+.>>-.>.<+.<-.>--.+.>>>.<.>+.+..<.--.>--.++.>.>+.<<.>.<<<.<.<.<-.<..<+.>.>.>+.>.>>.>.-.+.<-.--..>-.+.-.<.<+.<<.<.>++...>.++.>-.>-.>.>.<.<.-...<--..<.<.>>>.<+.<.<<.<..>>.>>>.<.<..>.<<...<<.>.<.>.+..<.>+.>--.+.<.--.<+.>.>>.>.>>.>.<<<.<<<.+.-.>+.>..<..>>.>>.>++.<-.>-.>.<++.<.<.<.<-.+.--.+.+.<.<<.<.<+.<+.--.+.<.<++.<.<.<.>>-.>.>.>.>>.>.--.>.<<..+.<<.>>.-.<.>>>.>.>..---.+.-.<.>.+.<<.<.<.>.-.>.<<.<+.<.<.-.-.>.<++.+.>-.>>.>.>>.--.-.>-.<.<.<.>>.>.>.++..----.>.<.>-.<-.>>.>.>.-.+.<-.++.-.<<+.<+.<<<<..<+.<-.<<.-.>>.>>..--.<-.>-.<..>++.<+.<.<<.>.>.>>.>.>.<+.>-.>.>.+++.<+.<.<<.+.<.<-.<.>.<<.<.>.+.<.>.>.++.<<+.-..>.<++..>+.<<.<-.>+.>.-.<+.<<..>.<.<..--.+++..>>.<.<.--.<.<.>-.>-.+..++.>.-.-.>.>+.<-.<---.<.+.>.<<+.>.<+.-..>.<-.<<-.>+.<-.+++.<.<+.>.+...>>>.>>.>.+++..<..>>.>.>>-.<-.>-.<--.>.>.-..<.<-.<-..<<.<.<<<<.--.>.>>.+.-.>++.>>.>.+.>.+.>.<+++.<.<.<.<.>.<+.<<<.<<.>.<-.<.<.-.>-.>.>-.>-.>.+.>.++.>.--...<-.<+.<+...<<.-.<<.>--.<-.+.>.<-.+.<<.+.<-.<.<.+.>.+.-.-.>+.+.<.<<.+.<<.<.<..<.<--.<+.<<.>+.--.<<.--.>-.+.>.>.<.>.--..>+.>.-.<+.-.<+.<-..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.>-.>.--.<..<<-.>.-.++.>+.<.-.>.-.<.<.>+..+.-.>.>.>+.>+.<.+..-.-.>>.>>.>-.--.++..<<.<+.<-.<.-..<<.>.+.>+.>.<.>..<<-.+.<-.>+.--.<+.>>.>.>.>+.<.>++.>>..>.-.++.<..>-.>>-..>-.<.<.<-..>.<-..++..-.<.-.>-.+.>.<--.>+.-..+.<.>.>>++..-.>.<<.<.<-.<<-.-.<.>>.>>-.>..>.<+..>.<<..>+.++.++.>+.<.<.<<.<.++.>-.>>.<.>>.>-.>>.+.-..>-.>.<-.>-.>.<.-.<<.>.<..<<.--.<<.>.--.<.<<.>+.+.--.-.>+.>.<-.+.--.>>+.>.+.<.>+.>.>>-.<.<+.-.>.+.<.<--.<.>-.<+.>.++..<--.<-.>.<.<.>.>>+.-.>>..<++.>.+.<<<..<<.>.>+..--.<+.>.<--.++.+.>.>+.<+.+..<<..<<..>+..<<-.<.<.---..+.<-.<.>.>+.>>.>>.>.<.>+.<<.>++.>+.>.++.>+.>-.>-.-.<.+.>>.+.--.<.>-.<.+.<-.<.<-.<.-.>.>>.<.<.<.<.+.<.<+.>++.>.<<.<..<.<-.<-.>+.>-.>.<--.<-.>.>>.-.>.<<..>.<.>--.>-.<-.<-.<.<<.<<.<.+.-.-.<<.>+.>-.>.<<.<.+..--.>-.<+.>-.>.-.++++.>+.>.++.>.>+.<..<.<<<.>.>>.<+.>.<<.>.>-.+.>.>+.<+.>+.>.<<.<.-.<-.>.-..>-..+.>.>>.>+.>+.-.>.<-.<+.<+.<+..+.";
+	// Patterns(1..450) @ 2.6f : best = 174 @2527 characters
 
-	BFVM vm(BF_PATTERN_258.c_str(), 1000, BFVM::OutputStyle::StdOutAndInteralBuffer);
-	vm.Run();
-	AStar a;
-
-	std::string target_output = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
-	target_output = target_output.substr(0, 2 + 1000); //, 2 + 1000);
-	a.SetTargetOutput(target_output);
-
-	a.SetInitialState(vm);
-	do
+	int best_starting_pattern = 0;
+	std::string best_solution = "";
+	for (int starting_pattern = 1; starting_pattern <= 999; starting_pattern++)
 	{
-		a.ProcessNextNode();
-	} while (!a.IsFinished());
+		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
+		printf("Starting Pattern = %d : ", starting_pattern);
 
-	const AStarNode& solution = a.GetTopNode();
-	const std::string& str = solution._vm->GetInstructions();
-	printf("\nSolution...\n%s\n%d characters\n", str.c_str(), int(str.size()));
+		BFVM vm(starting_pattern_code.c_str(), 1000, BFVM::OutputStyle::InternalBuffer);
+		vm.Run();
+		AStar a;
+
+		std::string target_output = SQRT_2.substr(0, 2 + 1000); //, 2 + 1000);
+		a.SetTargetOutput(target_output);
+		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
+
+		a.SetInitialState(vm);
+		do
+		{
+			a.ProcessNextNode();
+		} while (!a.IsFinished());
+		printf("Steps = %d : ", a.GetNumNodesProcessed());
+
+		if (!a.Succeeded())
+		{
+			printf("Aborted\n");
+		}
+		else
+		{
+			const AStarNode& solution = a.GetTopNode();
+			const std::string& str = solution._vm->GetInstructions();
+
+			if (best_solution.size() == 0 || (str.size() < best_solution.size()))
+			{
+				best_solution = str;
+				best_starting_pattern = starting_pattern;
+			}
+
+			printf("Size = %d%s\n",
+				int(str.size()),
+				(best_starting_pattern == starting_pattern) ? " : <-- NEW BEST!" : ""
+			);
+		}
+	}
+
+	printf("\n\nBest Solution...\n%s\n%d characters\nStarting Pattern - %d",
+		best_solution.c_str(),
+		int(best_solution.size()),
+		best_starting_pattern);
 }
 
 int main(int argc, char *argv[])
@@ -713,7 +838,8 @@ int main(int argc, char *argv[])
 	
 	/*
 	std::vector<std::string> bf_chunks;
-	bf_chunks.push_back(BF_1111);
+	bf_chunks.push_back(BF_ASCII_6);
+
 
 	// Move to start of pattern
 	//bf_chunks.push_back(">>");
@@ -727,7 +853,7 @@ int main(int argc, char *argv[])
 		printf("%s\n", bf_chunks[i].c_str());
 		b.GetMutableInstructions() += bf_chunks[i];
 		b.Run();
-		b.DebugTape(0, 300);
+		b.DebugTape(0, 30);
 	}
 	printf("%s\n", b.GetInstructions().c_str());
 	/*
