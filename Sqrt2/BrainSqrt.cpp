@@ -82,6 +82,8 @@ std::string BF_MAKE_X_COPIES = "[->>[>]<" + BF_COPY_2X + ">>[-<<+>>]<[<]<]";
 // 0 (0) 0 0 ... --> (0) 0 3 3 3 3 3 ... 3 3 3 0
 std::string BF_LOTS_OF_3s = BF_ASCII_3 + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
 
+std::string BF_LOTS_OF_3s_opt = "-[->>[>]>-[<+>-----]<[<]<]";
+
 // 0 (0) 0 0 ... --> (0) 0 4 4 4 4 4 ... 4 4 4 0
 std::string BF_LOTS_OF_4s = BF_ASCII_4 + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
 
@@ -930,14 +932,8 @@ int main(int argc, char *argv[])
 	
 	/*
 	std::vector<std::string> bf_chunks;
-	bf_chunks.push_back(BF_ASCII_6);
+	bf_chunks.push_back("-[->>[>]>-[<+>-----]<[<]<]");
 
-
-	// Move to start of pattern
-	//bf_chunks.push_back(">>");
-
-	// (3) 3 3 ... 3 3 3 --> 1 4 7 ... 1 4 (7) a couple potential gibberish entries at end
-	//bf_chunks.push_back("[-->+>++++>]<");
 
 	BFVM b("");
 	for (int i = 0; i <bf_chunks.size(); i++)
@@ -945,7 +941,7 @@ int main(int argc, char *argv[])
 		printf("%s\n", bf_chunks[i].c_str());
 		b.GetMutableInstructions() += bf_chunks[i];
 		b.Run();
-		b.DebugTape(0, 30);
+		b.DebugTape(0, 300);
 	}
 	printf("%s\n", b.GetInstructions().c_str());
 	/*
