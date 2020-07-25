@@ -372,8 +372,8 @@ protected:
 int main()
 {
     printf("Num Sequences = %d\n", Sequence::GetNumSequences());
-    Game g(Sequence(5, 5, 5, 5));
-    g.MakeGuess(Sequence(5, 2, 1, 0));
+    Game g(Sequence(0, 0, 0, 0));
+    g.MakeGuess(Sequence(0, 0, 1, 1));
     //g.MakeGuess(Sequence(5, 5, 2, 1));
     //g.MakeGuess(Sequence(4, 0, 0, 5));
     //g.MakeGuess(Sequence(1, 5, 5, 5));

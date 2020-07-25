@@ -18,7 +18,6 @@ static_assert(sizeof(uint8) == 1, "Expected uint8 to be 1-byte");
 static_assert(sizeof(uint32) == 4, "Expected uint32 to be 4-bytes");
 static_assert(sizeof(int64) == 8, "Expected int64 to be 8-bytes");
 
-class Hash;
 
 // If 'USE_JUMP_TABLE' is defined, a simple jump table optimization will
 // be generated at the memory cost of an integer per instruction
@@ -110,7 +109,7 @@ public:
 	{
 		const uint8* p = static_cast<const uint8*>(ptr);
 		for (int i = 0; i < size; i++, p++)
-		{
+		{ 
 			_hash = ((_hash << 5) + _hash) + (*p);
 		}
 	}
@@ -868,11 +867,12 @@ std::string BuildBFPattern(int pattern)
 void TestAStar()
 {
 	const int kMaxNodesToProcess = 500000;
-	float target_instructions_per_output = 2.6f;
+	float target_instructions_per_output = 2.5f;
+	int decimal_places_to_compute = 1000;
 
 	int best_starting_pattern = 0;
 	std::string best_solution = "";
-	for (int starting_pattern = 258; starting_pattern <= 258; starting_pattern++)
+	for (int starting_pattern = 1; starting_pattern <= 1000; starting_pattern++)
 	{
 		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
 		printf("Starting Pattern = %d : ", starting_pattern);
@@ -882,7 +882,7 @@ void TestAStar()
 		AStar a;
 		a.SetTargetInstructionsPerOutput(target_instructions_per_output);
 
-		std::string target_output = SQRT_2.substr(0, 2 + 1000); //, 2 + 1000);
+		std::string target_output = SQRT_2.substr(0, 2 + decimal_places_to_compute);
 		a.SetTargetOutput(target_output);
 		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
 
@@ -895,7 +895,12 @@ void TestAStar()
 
 		if (!a.Succeeded())
 		{
-			printf("Aborted\n");
+			const AStarNode& top = a.GetTopNode();
+			printf("Aborted : Score = %0.4f : # Instructions = %d : Output Size = %d\n",
+				top._score,
+				(int)top._vm->GetInstructions().size(),
+				(int)top._vm->GetOutput().size()
+			);
 		}
 		else
 		{
@@ -930,16 +935,16 @@ int main(int argc, char *argv[])
 	
 	/*
 	std::vector<std::string> bf_chunks;
-	bf_chunks.push_back(BF_ASCII_6);
+	bf_chunks.push_back("");
+	bf_chunks.push_back("[>]");		
+	bf_chunks.push_back("");
+	bf_chunks.push_back("");
+	bf_chunks.push_back("");
+	bf_chunks.push_back("");
 
 
-	// Move to start of pattern
-	//bf_chunks.push_back(">>");
 
-	// (3) 3 3 ... 3 3 3 --> 1 4 7 ... 1 4 (7) a couple potential gibberish entries at end
-	//bf_chunks.push_back("[-->+>++++>]<");
-
-	BFVM b("");
+	BFVM b("", 500);
 	for (int i = 0; i <bf_chunks.size(); i++)
 	{
 		printf("%s\n", bf_chunks[i].c_str());
