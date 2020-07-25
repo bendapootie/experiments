@@ -428,15 +428,30 @@ public:
 		return _score < rhs._score;
 	}
 
-	void ComputeScore(const std::string target_output)
+	void ComputeScore(const std::string target_output, const float target_instructions_per_output)
 	{
 		assert(_vm != nullptr);
-
-		// Estimated Cost = (Num Instructions Used) + (Num Output Characters Remaining) * (Magic Scalar)
-		float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * kEstimatedInstructionsPerOutput;
-
-		// Negate cost to get score because we want to smallest cost to have the biggest score
-		_score = -cost;
+		
+		float score = 0.0f;
+		if (target_instructions_per_output > 0.0f)
+		{
+			// A clear target was given, use that to determine score
+			// score = number of instructions remaining per output char
+			// Note - This approach leans into targeting a specific instruction length
+			const float target_num_instructions = target_output.size() * target_instructions_per_output;
+		
+			score = (target_num_instructions - _vm->GetInstructions().size()) / (target_output.size() - _vm->GetOutput().size());
+		}
+		else
+		{
+			// No clear target was given, do something generic
+			// Estimated Cost = (Num Instructions Used) + (Num Output Characters Remaining) * (Magic Scalar)
+			float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * 3.0;
+			// Negate cost to get score because we want to smallest cost to have the biggest score
+			score = -cost;
+		}
+	
+		_score = score;
 	}
 
 public:
@@ -494,6 +509,11 @@ public:
 	{
 		_target_output = target_output;
 	}
+	
+	void SetTargetInstructionsPerOutput(const float s)
+	{
+		_target_instructions_per_output = s;
+	}
 
 	void SetInitialState(const BFVM& vm)
 	{
@@ -502,7 +522,7 @@ public:
 		new_vm->Clone(vm);
 
 		AStarNode new_node(new_vm);
-		AddNode(new_node);
+		_queue.push(new_node);
 	}
 
 	// Pop the Node with the lowest score and add all its potential next steps
@@ -522,15 +542,21 @@ public:
 			next_output_char = _target_output[top_output.size()];
 		}
 
-		for (int i = -5; i <= 5; i++)
+		for (int delta = 0; delta <= 5; delta++)
 		{
-			if ((int)top._vm->GetTapePointer() >= -i)
+			for (int i = -delta; i <= delta; i += (i == 0)? 1 : 2 * delta)
+			//for (int i = -5; i <= 5; i++)
 			{
-				AStarNode next_node;
-				bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
-				if (use_node)
+				if ((int)top._vm->GetTapePointer() >= -i)
 				{
-					AddNode(next_node);
+					AStarNode next_node;
+					bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
+					if (use_node)
+					{
+						next_node.ComputeScore(_target_output, _target_instructions_per_output);
+						//printf("score = %0.4f\n", next_node._score);
+						_queue.push(next_node);
+					}
 				}
 			}
 		}
@@ -608,12 +634,6 @@ protected:
 		new_node._score = other._score;
 		return new_node;
 	}
-
-	void AddNode(AStarNode& node)
-	{
-		node.ComputeScore(_target_output);
-		_queue.push(node);
-	}
 	
 protected:
 	std::set<BFVM*> _vm_cache;
@@ -621,6 +641,7 @@ protected:
 	std::string _target_output;
 	int _num_nodes_processed = 0;
 	int _max_num_nodes = 0;
+	float _target_instructions_per_output = 0.0f;
 };
 
 
@@ -783,22 +804,22 @@ std::string BuildBFPattern(int pattern)
 	return output_string;
 }
 
-const float AStarNode::kEstimatedInstructionsPerOutput = 3.0f;
-
 void TestAStar()
 {
 	const int kMaxNodesToProcess = 100000;
+	float target_instructions_per_output = 2.65f;
 
 	int best_starting_pattern = 0;
 	std::string best_solution = "";
-	for (int starting_pattern = 1; starting_pattern <= 999; starting_pattern++)
+	for (int starting_pattern = 1; starting_pattern <= 99; starting_pattern++)
 	{
 		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
 		printf("Starting Pattern = %d : ", starting_pattern);
 
-		BFVM vm(starting_pattern_code.c_str(), 1000, BFVM::OutputStyle::InternalBuffer);
+		BFVM vm(starting_pattern_code.c_str(), 500, BFVM::OutputStyle::InternalBuffer);
 		vm.Run();
 		AStar a;
+		a.SetTargetInstructionsPerOutput(target_instructions_per_output);
 
 		std::string target_output = SQRT_2.substr(0, 2 + 1000); //, 2 + 1000);
 		a.SetTargetOutput(target_output);
