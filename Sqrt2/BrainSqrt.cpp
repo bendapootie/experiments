@@ -6,11 +6,19 @@
 #include <queue>
 #include <assert.h>
 #include <set>
+#include <map>
+#include <unordered_map>
 
 const int kDefaultTapeSize = 30000;
 typedef unsigned char uint8;
 typedef unsigned int uint32;
+typedef long long int64;
 
+static_assert(sizeof(uint8) == 1, "Expected uint8 to be 1-byte");
+static_assert(sizeof(uint32) == 4, "Expected uint32 to be 4-bytes");
+static_assert(sizeof(int64) == 8, "Expected int64 to be 8-bytes");
+
+class Hash;
 
 // If 'USE_JUMP_TABLE' is defined, a simple jump table optimization will
 // be generated at the memory cost of an integer per instruction
@@ -85,6 +93,48 @@ std::string BF_LOTS_OF_6s = BF_ASCII_6 + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
 
 
 std::string SQRT_2 = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
+
+class Hash
+{
+public:
+	Hash()
+	{
+	}
+
+	bool operator < (const Hash& other) const
+	{
+		return _hash < other._hash;
+	}
+
+	void Add(const void* ptr, const int size)
+	{
+		const uint8* p = static_cast<const uint8*>(ptr);
+		for (int i = 0; i < size; i++, p++)
+		{
+			_hash = ((_hash << 5) + _hash) + (*p);
+		}
+	}
+
+	void Add(const std::string& s)
+	{
+		Add(s.c_str(), (int)s.size());
+	}
+
+	template <class T>
+	void Add(const T& n)
+	{
+		Add(&n, sizeof(n));
+	}
+
+	int64 GetValue() const
+	{
+		return _hash;
+	}
+
+	int64 _hash = 5381;
+};
+
+
 
 class BFVM
 {
@@ -297,15 +347,19 @@ public:
 		return true;
 	}
 	
-	int CalculateHash()
+	Hash CalculateHash()
 	{
 		// Build hash based on these elements. Maybe let caller decide which ones to include?
-		// tape data
-		// tape ptr
-		// instructions
-		// instruction ptr
-		// output
-		return 0;
+		Hash h;
+		h.Add(_tape, (int)_tape_size);	// tape data
+		h.Add(_tp);						// tape pointer
+
+		h.Add(_instructions.size());	// size of instructions
+		//h.Add(_instructions);			// instructions
+		h.Add(_ip);						// instruction pointer
+
+		h.Add(_output);					// output
+		return h;
 	}
 	
 	void DebugTape(int min = 0, int count = 100) const
@@ -446,7 +500,7 @@ public:
 		{
 			// No clear target was given, do something generic
 			// Estimated Cost = (Num Instructions Used) + (Num Output Characters Remaining) * (Magic Scalar)
-			float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * 3.0;
+			float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * 3.0f;
 			// Negate cost to get score because we want to smallest cost to have the biggest score
 			score = -cost;
 		}
@@ -542,20 +596,26 @@ public:
 			next_output_char = _target_output[top_output.size()];
 		}
 
-		for (int delta = 0; delta <= 5; delta++)
+		for (int i = -5; i <= 5; i++)
 		{
-			for (int i = -delta; i <= delta; i += (i == 0)? 1 : 2 * delta)
-			//for (int i = -5; i <= 5; i++)
+			if ((int)top._vm->GetTapePointer() >= -i)
 			{
-				if ((int)top._vm->GetTapePointer() >= -i)
+				AStarNode next_node;
+				bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
+				if (use_node)
 				{
-					AStarNode next_node;
-					bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
-					if (use_node)
+					next_node.ComputeScore(_target_output, _target_instructions_per_output);
+
+					Hash h = next_node._vm->CalculateHash();
+					float previous_best = _hash_to_best_score[h.GetValue()];
+					if (next_node._score > previous_best)
 					{
-						next_node.ComputeScore(_target_output, _target_instructions_per_output);
-						//printf("score = %0.4f\n", next_node._score);
+						_hash_to_best_score[h.GetValue()] = next_node._score;
 						_queue.push(next_node);
+					}
+					else
+					{
+						//printf("Hash collided - %llx! - %0.4f : %0.4f\n", h.GetValue(), previous_best, next_node._score);
 					}
 				}
 			}
@@ -639,6 +699,7 @@ protected:
 	std::set<BFVM*> _vm_cache;
 	std::priority_queue<AStarNode> _queue;
 	std::string _target_output;
+	std::unordered_map<int64, float> _hash_to_best_score;
 	int _num_nodes_processed = 0;
 	int _max_num_nodes = 0;
 	float _target_instructions_per_output = 0.0f;
@@ -806,12 +867,12 @@ std::string BuildBFPattern(int pattern)
 
 void TestAStar()
 {
-	const int kMaxNodesToProcess = 100000;
-	float target_instructions_per_output = 2.65f;
+	const int kMaxNodesToProcess = 500000;
+	float target_instructions_per_output = 2.6f;
 
 	int best_starting_pattern = 0;
 	std::string best_solution = "";
-	for (int starting_pattern = 1; starting_pattern <= 99; starting_pattern++)
+	for (int starting_pattern = 258; starting_pattern <= 258; starting_pattern++)
 	{
 		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
 		printf("Starting Pattern = %d : ", starting_pattern);
