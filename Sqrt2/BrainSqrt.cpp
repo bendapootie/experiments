@@ -78,8 +78,8 @@ std::string BF_1111 = BF_ASCII_1 + BF_COPY_4X;
 // (x) 0 N N 0 --> (0) 0 N N N N ... N N N (N : x times) 0
 std::string BF_MAKE_X_COPIES = "[->>[>]<" + BF_COPY_2X + ">>[-<<+>>]<[<]<]";
 
-// 0 (0) 0 0 ... --> (0) 0 3 3 3 3 3 ... 3 3 3 0
-std::string BF_LOTS_OF_3s = BF_ASCII_3 + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
+// 0 0 0 0 ... --> (0) 0 3 3 3 3 3 ... 3 3 3 0
+std::string BF_LOTS_OF_3s = "-[->>[>]>-[<+>-----]<[<]<]";
 
 // 0 (0) 0 0 ... --> (0) 0 4 4 4 4 4 ... 4 4 4 0
 std::string BF_LOTS_OF_4s = BF_ASCII_4 + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
@@ -866,8 +866,8 @@ std::string BuildBFPattern(int pattern)
 
 void TestAStar()
 {
-	const int kMaxNodesToProcess = 500000;
-	float target_instructions_per_output = 2.5f;
+	const int kMaxNodesToProcess = 10000;
+	float target_instructions_per_output = 3.0f;
 	int decimal_places_to_compute = 1000;
 
 	int best_starting_pattern = 0;
@@ -935,14 +935,7 @@ int main(int argc, char *argv[])
 	
 	/*
 	std::vector<std::string> bf_chunks;
-	bf_chunks.push_back("");
-	bf_chunks.push_back("[>]");		
-	bf_chunks.push_back("");
-	bf_chunks.push_back("");
-	bf_chunks.push_back("");
-	bf_chunks.push_back("");
-
-
+	bf_chunks.push_back("-[->>[>]>-[<+>-----]<[<]<]");
 
 	BFVM b("", 500);
 	for (int i = 0; i <bf_chunks.size(); i++)
@@ -950,7 +943,7 @@ int main(int argc, char *argv[])
 		printf("%s\n", bf_chunks[i].c_str());
 		b.GetMutableInstructions() += bf_chunks[i];
 		b.Run();
-		b.DebugTape(0, 30);
+		b.DebugTape(0, 300);
 	}
 	printf("%s\n", b.GetInstructions().c_str());
 	/*
