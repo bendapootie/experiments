@@ -78,6 +78,10 @@ std::string BF_1111 = BF_ASCII_1 + BF_COPY_4X;
 // (x) 0 N N 0 --> (0) 0 N N N N ... N N N (N : x times) 0
 std::string BF_MAKE_X_COPIES = "[->>[>]<" + BF_COPY_2X + ">>[-<<+>>]<[<]<]";
 
+std::string BF_LOTS_OF_0s = "-[->>[>]--->-[<+>-----]<[<]<]";
+std::string BF_LOTS_OF_1s = "-[->>[>]-->-[<+>-----]<[<]<]";
+std::string BF_LOTS_OF_2s = "-[->>[>]->-[<+>-----]<[<]<]";
+
 // 0 0 0 0 ... --> (0) 0 3 3 3 3 3 ... 3 3 3 0
 std::string BF_LOTS_OF_3s = "-[->>[>]>-[<+>-----]<[<]<]";
 
@@ -89,6 +93,9 @@ std::string BF_LOTS_OF_5s = "-[->>[>]++>-[<+>-----]<[<]<]";
 
 // 0 (0) 0 0 ... --> (0) 0 6 6 6 6 6 ... 6 6 6 0
 std::string BF_LOTS_OF_6s = "-[->>[>]+++>-[<+>-----]<[<]<]";
+std::string BF_LOTS_OF_7s = "-[->>[>]++++>-[<+>-----]<[<]<]";
+std::string BF_LOTS_OF_8s = "-[->>[>]+++++>-[<+>-----]<[<]<]";
+std::string BF_LOTS_OF_9s = "-[->>[>]++++++>-[<+>-----]<[<]<]";
 
 
 std::string SQRT_2 = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
@@ -842,18 +849,16 @@ std::string BuildBFPattern(int pattern)
 		std::string potential_output_string = "";
 		switch (base_digit)
 		{
-		case 3:
-			potential_output_string = BF_LOTS_OF_3s;
-			break;
-		case 4:
-			potential_output_string = BF_LOTS_OF_4s;
-			break;
-		case 5:
-			potential_output_string = BF_LOTS_OF_5s;
-			break;
-		case 6:
-			potential_output_string = BF_LOTS_OF_6s;
-			break;
+		case 0: potential_output_string = BF_LOTS_OF_0s; break;
+		case 1: potential_output_string = BF_LOTS_OF_1s; break;
+		case 2: potential_output_string = BF_LOTS_OF_2s; break;
+		case 3: potential_output_string = BF_LOTS_OF_3s; break;
+		case 4: potential_output_string = BF_LOTS_OF_4s; break;
+		case 5: potential_output_string = BF_LOTS_OF_5s; break;
+		case 6: potential_output_string = BF_LOTS_OF_6s; break;
+		case 7: potential_output_string = BF_LOTS_OF_7s; break;
+		case 8: potential_output_string = BF_LOTS_OF_8s; break;
+		case 9: potential_output_string = BF_LOTS_OF_9s; break;
 		default:
 			potential_output_string = GetBFAsciiCodeForDigit(base_digit) + "<<" + BF_MAKE_255 + BF_MAKE_X_COPIES;
 		}
@@ -881,6 +886,44 @@ std::string BuildBFPattern(int pattern)
 	return output_string;
 }
 
+
+void AStarV2()
+{
+	const int kMaxNodesToProcess = 100000;
+	float ipc = 5.0f;
+	int decimal_places_to_compute = 1000;
+	int vm_tape_size = 500;
+	
+	std::map<int, float> pattern_to_score;
+	
+	for (int i = 1; i <= 999; i ++)
+	{
+		pattern_to_score[i] = 0.0f;
+	}
+	
+	for (auto it = pattern_to_score.begin(); it != pattern_to_score.end(); it++)
+	{
+		int pattern = it->first;
+		BFVM vm(
+			BuildBFPattern(pattern).c_str(),
+			vm_tape_size,
+			BFVM::OutputStyle::InternalBuffer
+		);
+		
+		AStar a;
+		a.SetTargetInstructionsPerOutput(ipc);
+		a.SetTargetOutput(SQRT_2.substr(0, (size_t)(decimal_places_to_compute + 2)));
+		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
+		
+		a.SetInitialState(vm);
+		do
+		{
+			a.ProcessNextNode();
+		} while (!a.IsFinished());
+	}
+	std::vector<float> best;
+}
+
 void TestAStar()
 {
 	const int kMaxNodesToProcess = 100000;
@@ -892,7 +935,7 @@ void TestAStar()
 
 	int best_starting_pattern = 0;
 	std::string best_solution = "";
-	for (int starting_pattern = 1; starting_pattern <= 999; starting_pattern++)
+	for (int starting_pattern = 900; starting_pattern <= 999; starting_pattern++)
 	{
 		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
 
@@ -947,11 +990,12 @@ int main(int argc, char *argv[])
 	BFVM::TestVM();
 	//BFVM::TestClass();
 	TestAStar();
+	//AStarV2();
 	//FirstPassSqrt2();
 	
 	/*
 	std::vector<std::string> bf_chunks;
-	bf_chunks.push_back(BF_LOTS_OF_6s);
+	bf_chunks.push_back(BF_LOTS_OF_1s);
 
 	BFVM b("", 500);
 	for (int i = 0; i <bf_chunks.size(); i++)
