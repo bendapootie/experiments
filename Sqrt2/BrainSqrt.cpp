@@ -493,6 +493,7 @@ public:
 		assert(_vm != nullptr);
 		
 		float score = 0.0f;
+#if 0
 		if (target_instructions_per_output > 0.0f)
 		{
 			// A clear target was given, use that to determine score
@@ -502,14 +503,14 @@ public:
 		
 			score = (target_num_instructions - _vm->GetInstructions().size()) / (target_output.size() - _vm->GetOutput().size());
 		}
-		else
+#else
 		{
-			// No clear target was given, do something generic
 			// Estimated Cost = (Num Instructions Used) + (Num Output Characters Remaining) * (Magic Scalar)
-			float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * 3.0f;
+			float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * target_instructions_per_output;
 			// Negate cost to get score because we want to smallest cost to have the biggest score
 			score = -cost;
 		}
+#endif
 	
 		_score = score;
 	}
@@ -538,9 +539,13 @@ public:
 		_vm_cache.clear();
 	}
 
-	const AStarNode& GetTopNode() const
+	const AStarNode* GetTopNode() const
 	{
-		return _queue.top();
+		if (!_queue.empty())
+		{
+			return &_queue.top();
+		}
+		return nullptr;
 	}
 
 	bool IsFinished() const
@@ -614,7 +619,8 @@ public:
 
 					Hash h = next_node._vm->CalculateHash();
 					float previous_best = _hash_to_best_score[h.GetValue()];
-					if (next_node._score > previous_best)
+					// If "previous_best" is exactly 0.0, we assume it's just the default value and still add the node
+					if ((previous_best == 0.0f) || (next_node._score > previous_best))
 					{
 						_hash_to_best_score[h.GetValue()] = next_node._score;
 						_queue.push(next_node);
@@ -887,64 +893,30 @@ std::string BuildBFPattern(int pattern)
 }
 
 
-void AStarV2()
+void AStarV2(int starting_pattern)
 {
-	const int kMaxNodesToProcess = 100000;
-	float ipc = 5.0f;
+	// 2.48 = 2490
+	float ipc = 2.355f;
+	const int kMaxNodesToProcess = 500000;
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
+	std::string target_output = SQRT_2.substr(0, 2 + (size_t)decimal_places_to_compute);
 	
-	std::map<int, float> pattern_to_score;
+	std::string pattern_257_854chars_2200_instructions = "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.<+.--.<<.-.+++.<-.>-.>.>>.<.--.>.-..>>.>.<.<++.>.>..>.<<.<.-.++.>.+.<.<.<+.-.-.>+.<.+++.<<..<+.>>.+++.<.-.<.>>.+.-.-.<.-.--.---.<.<<.>.<.>+.>.>-.>-.>.>+.>.>--.<--.+.---.>>.>+.+..<.<+.<.>>>.>.<<.>.>.>+.<-.>--.>++.>..>+.<.<.<+.<.>.<-.-.+.>-.--..>+.+.-.<.<<<.<.<.<+...<.++.>-.<--.<.>+.<.>-.-...>--..-.>>>.>.<<.--.<.>..>.>.<--.<..>.++...<.<.<.>.<<<..<<.<-.<.+.>.--.>+.<.>-.++.>>.+++.<<.<.+.-.<+.<..>..--.<<-.>+.<-.<<.++++.>.>.<<<.<.---.<.>>+.+.+.>.<+.++.>>>>.<++.--.+.>--.>.>++.<+.<+.<.<.<<<.---.>.<<+.--.>-.>..+.<+.>.-.--.<-.>>.<-..---.+.-.>.<.+.<.>+.>-.<.-.<.>>.-.<<+.<.>>.-.<.>++.+.<-.<++++.<+.>+.--.-.<-.>.>.+++.<.<.<.++..<.<.<<.<-.>-.<-.>>.++.-.+.<++.>-.-.>.>.--..>.>>.-.>+.>+.<-..<<-.<-.>-.<..<<.<++.<.--.<.<<+.<.--.>.<+.>-.<+.>.>+.>>-.++.>>.+.<.<.<.>.-.>--.<.+.>.<.<.++.<.-..<.>++..<+.<-.>+.>>.<.-.>+.>..>.<.>>-..--.>..<<.<.<.--.<.>>.>.>.+..>.++.-.-.<<.<-.>-.>-.>.+.<.>>.<.>+.-..<.+++.<+.>-.>>.>>.>>+.<.>.+...>.>-.<<<.>..>>..>-.>.>-.>--.>.>-.<.<.-..>.>>.>++..++.>.>--.--.>---.--.+.-.>.<.+++.+.<<<<.<.---.<<++.<<.<.<<<.>>++.>>+.<-.+++.>.>.<-.<.<.-.>-.>.>-.<<.>-.+.<-.++.---.<...<--.<.<...>-.-.>>.>.<-.+.>.<-.+.<.+.>.<++.<<-.+.>>.+.-.-.>+.+.++++.<<<<-.+.<.>-.>++..<<.<.<+.<<+.<.<.<<.<-.<.+.>--.>+.<.>.--..>.>+.-.<+.-.<+.<-..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.>+.>.--.<..>+.<<.-.++.>+.<.-.>.-.<.<-.>+..+.-.>.>-.>.>.<.+..-.-.--.<<.<<+.--.++..<<.<.>>.>>.-..>.>.+.>++.>-.<.>..>.+.>+.>.--.>>.--.<.>-.>.<.<+.<++..<.-.++.>..<-.<-..++.--.<.<..>.<-..>>>..-.>.-.>>.+.>>+.>.>+.-..+.<.>.<+..-.>>>+.<.<.<-.<<-.-.<<.<.<<<.>..>--.>..<.>>-..<+.++.>>+.<<.++.<<<.<<.<<+.>.>>>>.<.>>-.>.<+.<.+.-..>++.<<+.<.>-.<+.>.-.>.<---.>..<-.>+.>+++.>.--.<.<-.<.+.--.>+.>+.>.>.+.--.<--.>.+.<.<.<-.<<+.--.<.-.>.+.<.<.<<.<<.<-.>.>..>-.>--.<.>.>.<.<<+.-.<-..<-.>.+.>>..>>.<.-..>>.>-.<.<<.++.+.<-.<+.>+.+..>>..>..<<<..<<.>.>++.<<<-..+.<.<.>.>+.>.<-.>+.<.<+.>--.>>>.<.>>.>.<<-.<-.>--.-.<.+.<-.>--.--.>.>-.<.+.>>+.<-.>--.+++.-.--.++.<.+++.>.>>.+.<.<-.<<+.<.<+.++..>>+.>.<+.<++.>--.>>++.>.>+.<.>+.-.<++.<..<.>.>++.>>-.++.>>-.<.<+.<+.--.+.-.<.<-.>--.+.<-.<<.<+.<..--.<+.>>.";
+
+	BFVM vm(
+		//BuildBFPattern(starting_pattern).c_str(),
+		pattern_257_854chars_2200_instructions.c_str(),
+		vm_tape_size,
+		BFVM::OutputStyle::InternalBuffer
+	);
+	vm.Run();
 	
-	for (int i = 1; i <= 999; i ++)
+	const AStarNode* top = nullptr;
+	do
 	{
-		pattern_to_score[i] = 0.0f;
-	}
-	
-	for (auto it = pattern_to_score.begin(); it != pattern_to_score.end(); it++)
-	{
-		int pattern = it->first;
-		BFVM vm(
-			BuildBFPattern(pattern).c_str(),
-			vm_tape_size,
-			BFVM::OutputStyle::InternalBuffer
-		);
-		
 		AStar a;
 		a.SetTargetInstructionsPerOutput(ipc);
-		a.SetTargetOutput(SQRT_2.substr(0, (size_t)(decimal_places_to_compute + 2)));
-		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
-		
-		a.SetInitialState(vm);
-		do
-		{
-			a.ProcessNextNode();
-		} while (!a.IsFinished());
-	}
-	std::vector<float> best;
-}
-
-void TestAStar()
-{
-	const int kMaxNodesToProcess = 100000;
-	float target_instructions_per_output = 2.5f;
-	int decimal_places_to_compute = 1000;
-	int vm_tape_size = 500;
-
-	printf("Pattern,Steps,Score,Output Size,Num Instructions\n");
-
-	int best_starting_pattern = 0;
-	std::string best_solution = "";
-	for (int starting_pattern = 900; starting_pattern <= 999; starting_pattern++)
-	{
-		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
-
-		BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
-		vm.Run();
-		AStar a;
-		a.SetTargetInstructionsPerOutput(target_instructions_per_output);
-
-		std::string target_output = SQRT_2.substr(0, (size_t)(decimal_places_to_compute + 2));
 		a.SetTargetOutput(target_output);
 		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
 
@@ -954,20 +926,72 @@ void TestAStar()
 			a.ProcessNextNode();
 		} while (!a.IsFinished());
 
-		const AStarNode& top = a.GetTopNode();
+		top = a.GetTopNode();
+		// Pattern, Steps, Score, Output Size, Num Instructions
+		printf("%d,%d,%0.4f,%d,%d\n",
+			starting_pattern,
+			a.GetNumNodesProcessed(),
+			(top != nullptr) ? top->_score : 0.0f,
+			(top != nullptr) ? (int)top->_vm->GetOutput().size() : 0,
+			(top != nullptr) ? (int)top->_vm->GetInstructions().size() : 0
+		);
+
+		if (top != nullptr)
+		{
+			vm.Clone(*top->_vm);
+		}
+	} while ((top != nullptr) && (vm.GetOutput() != target_output));
+
+	printf("\n\nBest Solution...\n%s\n%d characters\n",
+		vm.GetInstructions().c_str(),
+		int(vm.GetInstructions().size())
+	);
+}
+
+void TestAStar()
+{
+	float ipc = 2.48f;		// Instructions per character
+	const int kMaxNodesToProcess = 500000;
+	int decimal_places_to_compute = 1000;
+	int vm_tape_size = 500;
+
+	printf("Pattern,Steps,Score,Output Size,Num Instructions\n");
+
+	int best_starting_pattern = 0;
+	std::string best_solution = "";
+	for (int starting_pattern = 257; starting_pattern <= 257; starting_pattern++)
+	{
+		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
+
+		BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
+		vm.Run();
+		AStar a;
+		a.SetTargetInstructionsPerOutput(ipc);
+
+		std::string target_output = SQRT_2.substr(0, 2 + (size_t)decimal_places_to_compute);
+		a.SetTargetOutput(target_output);
+		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
+
+		a.SetInitialState(vm);
+		do
+		{
+			a.ProcessNextNode();
+		} while (!a.IsFinished());
+
+		const AStarNode* top = a.GetTopNode();
 		// Pattern, Steps, Score, Output Size, Num Instructions
 		printf("%d,%d,%0.4f,%d,%d",
 			starting_pattern,
 			a.GetNumNodesProcessed(),
-			top._score,
-			(int)top._vm->GetOutput().size(),
-			(int)top._vm->GetInstructions().size()
+			top->_score,
+			(int)top->_vm->GetOutput().size(),
+			(int)top->_vm->GetInstructions().size()
 		);
 
 		if (a.Succeeded())
 		{
-			const AStarNode& solution = a.GetTopNode();
-			const std::string& str = solution._vm->GetInstructions();
+			const AStarNode* solution = a.GetTopNode();
+			const std::string& str = solution->_vm->GetInstructions();
 
 			if (best_solution.size() == 0 || (str.size() < best_solution.size()))
 			{
@@ -989,8 +1013,8 @@ int main(int argc, char *argv[])
 {
 	BFVM::TestVM();
 	//BFVM::TestClass();
-	TestAStar();
-	//AStarV2();
+	//TestAStar();
+	AStarV2(257);
 	//FirstPassSqrt2();
 	
 	/*
