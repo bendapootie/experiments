@@ -19,10 +19,6 @@ static_assert(sizeof(uint32) == 4, "Expected uint32 to be 4-bytes");
 static_assert(sizeof(int64) == 8, "Expected int64 to be 8-bytes");
 
 
-// If 'USE_JUMP_TABLE' is defined, a simple jump table optimization will
-// be generated at the memory cost of an integer per instruction
-//#define USE_JUMP_TABLE
-
 // (0) --> (255)
 std::string BF_MAKE_255 = "-";
 
@@ -175,60 +171,71 @@ public:
 			delete[] _tape;
 		}
 	}
+private:
+	void InitAll(const uint8* tape, size_t tape_size, size_t tp,
+		const char* instructions, size_t ip,
+		const char* output, OutputStyle output_style)
+	{
+		if (_tape_size != tape_size)
+		{
+			// Free old tape data if it can't be reused
+			if (_tape != nullptr)
+			{
+				delete []_tape;
+				_tape = nullptr;
+			}
+			
+			// Allocate new tape
+			if (tape_size > 0)
+			{
+				_tape = new uint8[tape_size];
+			}
+		}
+		
+		// Copy data from other tape or zero out if source is null
+		_tape_size = tape_size;
+		if (_tape_size > 0)
+		{
+			if (tape != nullptr)
+			{
+				memcpy(_tape, tape, _tape_size);
+			}
+			else
+			{
+				memset(_tape, 0, sizeof(*_tape) * _tape_size);
+			}
+		}
+		
+		// Set the tape pointer
+		_tp = tp;
+		
+		_instructions = instructions != nullptr ? instructions : "";
+		_ip = ip;			// instruction pointer index
 
+		_output = output;
+		_output_style = output_style;
+	}
+
+public:
 	void Clone(const BFVM& other)
 	{
-		// Create tape buffer and copy it from the passed in VM
-		_tape_size = other._tape_size;
-		_tape = new uint8[_tape_size];
-		if (other._tape != nullptr)
-		{
-			memcpy(_tape, other._tape, _tape_size);
-		}
-		else
-		{
-			memset(_tape, 0, sizeof(*_tape) * _tape_size);
-		}
-		_tp = other._tp;
-
-		// Copy instruction buffer
-		_instructions = other._instructions;
-		_ip = other._ip;
-
-		_output = other._output;
-		_output_style = other._output_style;
-
-#ifdef USE_JUMP_TABLE
-		// Copy jump table
-		_jump_table = new int[_instructions.size()];
-		memcpy(_jump_table, other._jump_table, sizeof(*_jump_table) * _instructions.size());
-#endif // #ifdef USE_JUMPTABLE
+		InitAll(
+			other._tape,
+			other._tape_size,
+			other._tp,
+			other._instructions.c_str(),
+			other._ip,
+			other._output.c_str(),
+			other._output_style);
 	}
 
 	void Initialize(const char* instructions, int tape_size = kDefaultTapeSize, OutputStyle output_style = OutputStyle::StdOut)
 	{
-		// Create tape buffer and initialize to zero
-		_tape_size = tape_size;
-		if (_tape != nullptr)
-		{
-			delete[] _tape;
-		}
-		_tape = new uint8[_tape_size];
-		memset(_tape, 0, sizeof(*_tape) * _tape_size);
-		_tp = 0;
-
-		// Copy instruction buffer
-		_instructions = instructions;
-		_ip = 0;
-
-		_output = "";
-		_output_style = output_style;
-
-#ifdef USE_JUMP_TABLE
-		// Initialize jump table to empty
-		_jump_table = new int[_instructions.size()];
-		memset(_jump_table, 0, sizeof(*_jump_table) * _instructions.size());
-#endif // #ifdef USE_JUMP_TABLE
+		InitAll(
+			nullptr, tape_size, 0,
+			instructions, 0,
+			"", output_style
+		);
 	}
 
 	// Executes one instruction
@@ -300,35 +307,23 @@ public:
 				if ((_tape[_tp] != 0 && raw_instructions[_ip] == ']') ||
 					(_tape[_tp] == 0  && raw_instructions[_ip] =='['))
 				{
-#ifdef USE_JUMP_TABLE
-					int& jump_delta = _jump_table[_ip];
-#else // #ifdef USE_JUMP_TABLE
-					int jump_delta = 0;
-#endif // #ifdef USE_JUMP_TABLE
-					if (jump_delta != 0)
+					int depth = 1;
+					const char* search = &raw_instructions[_ip];
+					do
 					{
-						_ip += jump_delta;
-					}
-					else
-					{
-						int depth = 1;
-						const char* search = &raw_instructions[_ip];
-						do
+						search += search_dir;
+						if (*search == ']')
 						{
-							search += search_dir;
-							if (*search == ']')
-							{
-								depth -= search_dir;
-							}
-							else if (*search == '[')
-							{
-								depth += search_dir;
-							}
-						} while (depth != 0);
+							depth -= search_dir;
+						}
+						else if (*search == '[')
+						{
+							depth += search_dir;
+						}
+					} while (depth != 0);
 
-						jump_delta = (int)(search - &raw_instructions[_ip]);
-						_ip += jump_delta;
-					}
+					int jump_delta = (int)(search - &raw_instructions[_ip]);
+					_ip += jump_delta;
 				}
 				search_dir = 1;
 				steps_taken++;
@@ -434,7 +429,6 @@ public:
 	{
 		//BFVM vm(FirstPassSqrt2().c_str());
 		//vm.Run();
-
 		BFVM vm("[+++.]>>>-[>+<-----]>+.", 16, OutputStyle::InternalBuffer);	// Write an ascii '4'
 		vm.Run();
 		assert(vm.GetOutput().back() == '4');
@@ -458,12 +452,6 @@ private:
 
 	std::string _output;
 	OutputStyle _output_style = OutputStyle::StdOut;
-
-#ifdef USE_JUMP_TABLE
-	// lookup to map index of '[' and ']' to the delta to find its counterpart
-	// TODO: Figure out what to do with jump table if size of _instructions grows
-	int* _jump_table = nullptr;
-#endif // #ifdef USE_JUMP_TABLE
 };
 
 
@@ -734,83 +722,6 @@ std::string CalcDelta(int delta)
 	return w;
 }
 
-std::string FirstPassSqrt2()
-{
-#define BF(s) bf += s
-	const char* s = SQRT_2.c_str();
-	std::string bf = "";
-
-	// Fill data stream with ascii 4 and leave pointer at right
-	// put ascii '4' in data
-	BF(">>>-[>+<-----]>+");
-	// 0 0 0 0 (52) 0 0 0
-
-	// loop 3 times
-	BF("<<<+++[");
-	// 0 (85) 0 0 52 0 0 0
-	{
-		// loop 255 times
-		BF(">>-[");
-		// 0 255 0 (255) 52 0 0 0
-		{
-			// find next 0 in data
-			BF("[>]");
-			// 0 255 0 255 52 (0) 0 0
-
-			// copy previous value into two spots
-			BF("<[->+>+<<]");
-			// 0 255 0 255 (0) 52 52 0 0 
-
-			// copy back to original
-			BF(">>[-<<+>>]<");
-			// 0 255 0 255 52 (52) 0 0
-
-			// move data pointer back to loop counter and decrement it
-			BF("[<]>-");
-			// 0 255 0 (254) 52 52 0 0
-		}
-		// end of loop
-		BF("]<<-");
-		// 0 (254) 0 0 52 52 52 52 52 52 52 etc 52 52 0 0 0
-	}
-	// end of loop
-	BF("]>>>");
-	// 0 0 0 0 (52) 52 52 52 52 52 52 etc 52 52 0 0 0
-
-	// Make 4 2 5 8 2 5 8 2 5 8 etc
-	BF(">[-->+>++++>]<[<]");
-	// 0 0 0 (0) 52 50 53 56 50 53 56 etc
-
-	//BF("\n\n");
-
-	const char fill_char = '4';
-	char c = fill_char;
-	int num_n = 0;
-	int num_d = 0;
-	while (*s)
-	{
-		std::string w = CalcDelta(*s - c);
-		std::string n = ">" + CalcDelta(*s - fill_char);
-		c = *s;
-		if (w.size() < n.size())
-		{
-			BF(w.c_str());
-			num_d++;
-		}
-		else
-		{
-			BF(n.c_str());
-			num_n++;
-		}
-		BF(".");
-		s++;
-	}
-	printf("%s\n\n", bf.c_str());
-	printf("size = %d\n", (int)bf.size());
-
-	return bf;
-#undef BF
-}
 
 std::string GetBFAsciiCodeForDigit(int digit)
 {
@@ -950,8 +861,13 @@ void AStarV2(int starting_pattern)
 
 void TestAStar()
 {
+<<<<<<< HEAD
 	float ipc = 2.48f;		// Instructions per character
 	const int kMaxNodesToProcess = 500000;
+=======
+	const int kMaxNodesToProcess = 100000;
+	float target_instructions_per_output = 2.9f;
+>>>>>>> 2c91f77228626b606f4f33810bc0d78245fbb52e
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
 
@@ -1013,9 +929,14 @@ int main(int argc, char *argv[])
 {
 	BFVM::TestVM();
 	//BFVM::TestClass();
+<<<<<<< HEAD
 	//TestAStar();
 	AStarV2(257);
 	//FirstPassSqrt2();
+=======
+	TestAStar();
+	//AStarV2();
+>>>>>>> 2c91f77228626b606f4f33810bc0d78245fbb52e
 	
 	/*
 	std::vector<std::string> bf_chunks;
@@ -1030,12 +951,5 @@ int main(int argc, char *argv[])
 		b.DebugTape(0, 300);
 	}
 	printf("%s\n", b.GetInstructions().c_str());
-	/*
-	b.GetMutableInstructions() += "<<<+++[>>-[[>]<[->+>+<<]>>[-<<+>>]<[<]>-]<<-]>>>";
-	b.Run();
-	b.DebugTape(0, 20);
-	b.GetMutableInstructions() += ">[-->+>++++>]<[<]";
-	b.Run();
-	b.DebugTape(0, 20);
 	*/
 }
