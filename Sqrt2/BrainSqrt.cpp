@@ -861,21 +861,18 @@ void AStarV2(int starting_pattern)
 
 void TestAStar()
 {
-<<<<<<< HEAD
-	float ipc = 2.48f;		// Instructions per character
+	float ipc = 2.6f;		// Instructions per character
 	const int kMaxNodesToProcess = 500000;
-=======
-	const int kMaxNodesToProcess = 100000;
-	float target_instructions_per_output = 2.9f;
->>>>>>> 2c91f77228626b606f4f33810bc0d78245fbb52e
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
+
+	std::vector<int> good_patterns = {257,371,713,137,319,852,471,183,528,570,441,318,409,147,742,802,681,258,481,816,462,509,580,806,804,484,168,169,414,609,294,263,27,328,714,185,361,72,406,550,780,270,480,832,814,249,841,492,770,144,807,616,419,16,390,640,28,539,831,429,17,38,81,184};
 
 	printf("Pattern,Steps,Score,Output Size,Num Instructions\n");
 
 	int best_starting_pattern = 0;
 	std::string best_solution = "";
-	for (int starting_pattern = 257; starting_pattern <= 257; starting_pattern++)
+	for (int starting_pattern : good_patterns)
 	{
 		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
 
@@ -929,14 +926,9 @@ int main(int argc, char *argv[])
 {
 	BFVM::TestVM();
 	//BFVM::TestClass();
-<<<<<<< HEAD
-	//TestAStar();
-	AStarV2(257);
-	//FirstPassSqrt2();
-=======
 	TestAStar();
-	//AStarV2();
->>>>>>> 2c91f77228626b606f4f33810bc0d78245fbb52e
+	//AStarV2(257);
+	//FirstPassSqrt2();
 	
 	/*
 	std::vector<std::string> bf_chunks;
