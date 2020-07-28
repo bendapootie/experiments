@@ -455,6 +455,58 @@ private:
 };
 
 
+template <class T>
+class VmPool
+{
+public:
+	VmPool()
+	{
+	}
+
+	~VmPool()
+	{
+	}
+
+	// Returns a VM that is in a consistant state, but not necessarily initialized
+	T* CloneVM(const T& vm)
+	{
+		T* new_vm = nullptr;
+		if (_available.empty())
+		{
+			// Create a new instance
+			new_vm = new T();
+		}
+		else
+		{
+			new_vm = _available.back();
+			_available.pop_back();
+		}
+		assert(new_vm != nullptr);
+
+		new_vm->Clone(vm);
+		return new_vm;
+	}
+
+	// Marks passed in vm as unused and available for reallocation
+	void FreeVM(T* vm)
+	{
+		_available.push_back(vm);
+	}
+
+	// Marks all allocated VMs as unused
+	void FreeAll()
+	{
+		// TODO: Implement this function!
+		assert(false);
+	}
+
+protected:
+	std::vector<T*> _available;
+};
+
+VmPool<BFVM> VM_POOL;
+
+
 class AStarNode
 {
 public:
@@ -519,12 +571,13 @@ public:
 
 	~AStar()
 	{
-		// Free up all the memory from the VMs allocated in the cache
-		for (BFVM* vm : _vm_cache)
+		// TODO: Replace with single call to VM_POOL.FreeAll()
+		while (_queue.size() > 0)
 		{
-			delete vm;
+			const AStarNode& top = _queue.top();
+			VM_POOL.FreeVM(top._vm);
+			_queue.pop();
 		}
-		_vm_cache.clear();
 	}
 
 	const AStarNode* GetTopNode() const
@@ -571,9 +624,7 @@ public:
 	void SetInitialState(const BFVM& vm)
 	{
 		// Clone the passed in VM and push it on the A* search queue
-		BFVM* new_vm = GetNewVM();
-		new_vm->Clone(vm);
-
+		BFVM* new_vm = VM_POOL.CloneVM(vm);
 		AStarNode new_node(new_vm);
 		_queue.push(new_node);
 	}
@@ -623,26 +674,12 @@ public:
 
 		// DIRTY: We're done with the VM associated with the top node; clean it up
 		// TODO: Replace this with refcounting?
-		FreeVM(top._vm);
+		VM_POOL.FreeVM(top._vm);
 
 		_num_nodes_processed++;
 	}
 
 protected:
-	BFVM* GetNewVM()
-	{
-		BFVM* new_vm = new BFVM();
-		_vm_cache.insert(new_vm);
-		return new_vm;
-	}
-
-	void FreeVM(BFVM* vm)
-	{
-		auto it = _vm_cache.find(vm);
-		delete* it;
-		_vm_cache.erase(it);
-	}
-
 	bool GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos, AStarNode& out_new_node)
 	{
 		// TODO: Verify we're not going to go off the tape (avoid BF code that wraps around)
@@ -688,15 +725,13 @@ protected:
 	// TODO: The existance of this function makes me sad :(
 	AStarNode CloneNode(const AStarNode& other)
 	{
-		BFVM* new_vm = GetNewVM();
-		new_vm->Clone(*other._vm);
+		BFVM* new_vm = VM_POOL.CloneVM(*other._vm);
 		AStarNode new_node(new_vm);
 		new_node._score = other._score;
 		return new_node;
 	}
 	
 protected:
-	std::set<BFVM*> _vm_cache;
 	std::priority_queue<AStarNode> _queue;
 	std::string _target_output;
 	std::unordered_map<int64, float> _hash_to_best_score;
@@ -866,7 +901,7 @@ void TestAStar()
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
 
-	std::vector<int> good_patterns = {257,371,713,137,319,852,471,183,528,570,441,318,409,147,742,802,681,258,481,816,462,509,580,806,804,484,168,169,414,609,294,263,27,328,714,185,361,72,406,550,780,270,480,832,814,249,841,492,770,144,807,616,419,16,390,640,28,539,831,429,17,38,81,184};
+	std::vector<int> good_patterns = { 257,371,713,137,319,852,471,183,528,570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184 };
 
 	printf("Pattern,Steps,Score,Output Size,Num Instructions\n");
 
@@ -926,8 +961,8 @@ int main(int argc, char *argv[])
 {
 	BFVM::TestVM();
 	//BFVM::TestClass();
-	//TestAStar();
-	AStarV2(258);
+	TestAStar();
+	//AStarV2(258);
 	//FirstPassSqrt2();
 	
 	/*
