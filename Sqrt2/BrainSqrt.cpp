@@ -2,6 +2,7 @@
 // the square root of 2 to 1000 decimal places
 
 #include <stdio.h>
+#include <time.h>
 #include <string>
 #include <queue>
 #include <assert.h>
@@ -598,12 +599,12 @@ public:
 		return IsFinished() && ((_max_num_nodes == 0) || (_num_nodes_processed < _max_num_nodes));
 	}
 
-	int GetNumNodesProcessed() const
+	int64 GetNumNodesProcessed() const
 	{
 		return _num_nodes_processed;
 	}
 
-	void SetMaxNumNodesToProcess(int max_num_nodes)
+	void SetMaxNumNodesToProcess(int64 max_num_nodes)
 	{
 		_max_num_nodes = max_num_nodes;
 	}
@@ -702,7 +703,7 @@ public:
 			std::vector<AStarNode> nodes_to_keep;
 			nodes_to_keep.reserve(num_to_keep);
 
-			printf("Iterations:%d - queue size:%d", _num_nodes_processed, (int)_queue.size());
+			printf("Iterations:%d - queue size:%d", (int)_num_nodes_processed, (int)_queue.size());
 
 			// Save off 'num_to_keep' nodes to be readded
 			for (int i = 0; i < num_to_keep; i++)
@@ -801,8 +802,8 @@ protected:
 	std::priority_queue<AStarNode> _queue;
 	std::string _target_output;
 	std::unordered_map<int64, float> _hash_to_best_score;
-	int _num_nodes_processed = 0;
-	int _max_num_nodes = 0;
+	int64 _num_nodes_processed = 0;
+	int64 _max_num_nodes = 0;
 	float _target_instructions_per_output = 0.0f;
 	int _queue_trim_size_threshold = 0;
 	float _queue_trim_amount = 0.0f;
@@ -908,73 +909,18 @@ std::string BuildBFPattern(int pattern)
 }
 
 
-void AStarV2(int starting_pattern)
-{
-	// 2.48 = 2490
-	float ipc = 2.48f; //2.355f;
-	const int kMaxNodesToProcess = 400000;
-	int decimal_places_to_compute = 1000;
-	int vm_tape_size = 500;
-	std::string target_output = SQRT_2.substr(0, 2 + (size_t)decimal_places_to_compute);
-	
-	//std::string pattern_257_854chars_2200_instructions = "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.<+.--.<<.-.+++.<-.>-.>.>>.<.--.>.-..>>.>.<.<++.>.>..>.<<.<.-.++.>.+.<.<.<+.-.-.>+.<.+++.<<..<+.>>.+++.<.-.<.>>.+.-.-.<.-.--.---.<.<<.>.<.>+.>.>-.>-.>.>+.>.>--.<--.+.---.>>.>+.+..<.<+.<.>>>.>.<<.>.>.>+.<-.>--.>++.>..>+.<.<.<+.<.>.<-.-.+.>-.--..>+.+.-.<.<<<.<.<.<+...<.++.>-.<--.<.>+.<.>-.-...>--..-.>>>.>.<<.--.<.>..>.>.<--.<..>.++...<.<.<.>.<<<..<<.<-.<.+.>.--.>+.<.>-.++.>>.+++.<<.<.+.-.<+.<..>..--.<<-.>+.<-.<<.++++.>.>.<<<.<.---.<.>>+.+.+.>.<+.++.>>>>.<++.--.+.>--.>.>++.<+.<+.<.<.<<<.---.>.<<+.--.>-.>..+.<+.>.-.--.<-.>>.<-..---.+.-.>.<.+.<.>+.>-.<.-.<.>>.-.<<+.<.>>.-.<.>++.+.<-.<++++.<+.>+.--.-.<-.>.>.+++.<.<.<.++..<.<.<<.<-.>-.<-.>>.++.-.+.<++.>-.-.>.>.--..>.>>.-.>+.>+.<-..<<-.<-.>-.<..<<.<++.<.--.<.<<+.<.--.>.<+.>-.<+.>.>+.>>-.++.>>.+.<.<.<.>.-.>--.<.+.>.<.<.++.<.-..<.>++..<+.<-.>+.>>.<.-.>+.>..>.<.>>-..--.>..<<.<.<.--.<.>>.>.>.+..>.++.-.-.<<.<-.>-.>-.>.+.<.>>.<.>+.-..<.+++.<+.>-.>>.>>.>>+.<.>.+...>.>-.<<<.>..>>..>-.>.>-.>--.>.>-.<.<.-..>.>>.>++..++.>.>--.--.>---.--.+.-.>.<.+++.+.<<<<.<.---.<<++.<<.<.<<<.>>++.>>+.<-.+++.>.>.<-.<.<.-.>-.>.>-.<<.>-.+.<-.++.---.<...<--.<.<...>-.-.>>.>.<-.+.>.<-.+.<.+.>.<++.<<-.+.>>.+.-.-.>+.+.++++.<<<<-.+.<.>-.>++..<<.<.<+.<<+.<.<.<<.<-.<.+.>--.>+.<.>.--..>.>+.-.<+.-.<+.<-..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.>+.>.--.<..>+.<<.-.++.>+.<.-.>.-.<.<-.>+..+.-.>.>-.>.>.<.+..-.-.--.<<.<<+.--.++..<<.<.>>.>>.-..>.>.+.>++.>-.<.>..>.+.>+.>.--.>>.--.<.>-.>.<.<+.<++..<.-.++.>..<-.<-..++.--.<.<..>.<-..>>>..-.>.-.>>.+.>>+.>.>+.-..+.<.>.<+..-.>>>+.<.<.<-.<<-.-.<<.<.<<<.>..>--.>..<.>>-..<+.++.>>+.<<.++.<<<.<<.<<+.>.>>>>.<.>>-.>.<+.<.+.-..>++.<<+.<.>-.<+.>.-.>.<---.>..<-.>+.>+++.>.--.<.<-.<.+.--.>+.>+.>.>.+.--.<--.>.+.<.<.<-.<<+.--.<.-.>.+.<.<.<<.<<.<-.>.>..>-.>--.<.>.>.<.<<+.-.<-..<-.>.+.>>..>>.<.-..>>.>-.<.<<.++.+.<-.<+.>+.+..>>..>..<<<..<<.>.>++.<<<-..+.<.<.>.>+.>.<-.>+.<.<+.>--.>>>.<.>>.>.<<-.<-.>--.-.<.+.<-.>--.--.>.>-.<.+.>>+.<-.>--.+++.-.--.++.<.+++.>.>>.+.<.<-.<<+.<.<+.++..>>+.>.<+.<++.>--.>>++.>.>+.<.>+.-.<++.<..<.>.>++.>>-.++.>>-.<.<+.<+.--.+.-.<.<-.>--.+.<-.<<.<+.<..--.<+.>>.";
-
-	BFVM vm(
-		BuildBFPattern(starting_pattern).c_str(),
-		vm_tape_size,
-		BFVM::OutputStyle::InternalBuffer
-	);
-	vm.Run();
-	
-	const AStarNode* top = nullptr;
-	do
-	{
-		AStar a;
-		a.SetTargetInstructionsPerOutput(ipc);
-		a.SetTargetOutput(target_output);
-		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
-
-		a.SetInitialState(vm);
-		do
-		{
-			a.ProcessNextNode();
-		} while (!a.IsFinished());
-
-		top = a.GetTopNode();
-		// Pattern, Steps, Score, Output Size, Num Instructions
-		printf("%d,%d,%0.4f,%d,%d\n",
-			starting_pattern,
-			a.GetNumNodesProcessed(),
-			(top != nullptr) ? top->_score : 0.0f,
-			(top != nullptr) ? (int)top->_vm->GetOutput().size() : 0,
-			(top != nullptr) ? (int)top->_vm->GetInstructions().size() : 0
-		);
-		printf("%s\n\n", (top != nullptr) ? top->_vm->GetInstructions().c_str() : "n/a");
-
-		if (top != nullptr)
-		{
-			vm.Clone(*top->_vm);
-		}
-	} while ((top != nullptr) && (vm.GetOutput() != target_output));
-
-	printf("\n\nBest Solution...\n%s\n%d characters\n",
-		vm.GetInstructions().c_str(),
-		int(vm.GetInstructions().size())
-	);
-}
-
 void TestAStar()
 {
-	float ipc = 2.5f;		// Instructions per character
+	float ipc = 2.4f;		// Instructions per character
 	int queue_trim_size_threshold = 2000 * 1000;	// 0 = don't ever trim
 	float queue_trim_amount = 0.5f;
 	const int kMaxNodesToProcess = 0 * 500 * 1000;	// 0 = no limit
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
 
-	std::vector<int> good_patterns = { 257 };//, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
+	std::vector<int> good_patterns = { 257 };// { 257, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
 
-	printf("Pattern,Steps,Score,Output Size,Num Instructions\n");
+	printf("Seconds,Pattern,Steps,Score,Output Size,Num Instructions\n");
 
 	int best_starting_pattern = 0;
 	std::string best_solution = "";
@@ -992,17 +938,24 @@ void TestAStar()
 		a.SetTargetOutput(target_output);
 		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
 
+		// Start timer
+		time_t start_time = time(nullptr);
 		a.SetInitialState(vm);
 		do
 		{
 			a.ProcessNextNode();
 		} while (!a.IsFinished());
 
+		// End timer
+		time_t end_time = time(nullptr);
+		int elapsed_seconds = (int)difftime(end_time, start_time);
+
 		const AStarNode* top = a.GetTopNode();
 		// Pattern, Steps, Score, Output Size, Num Instructions
-		printf("%d,%d,%0.4f,%d,%d",
+		printf("%d,%d,%d,%0.4f,%d,%d",
+			elapsed_seconds,
 			starting_pattern,
-			a.GetNumNodesProcessed(),
+			(int)a.GetNumNodesProcessed(),
 			top->_score,
 			(int)top->_vm->GetOutput().size(),
 			(int)top->_vm->GetInstructions().size()
@@ -1034,7 +987,6 @@ int main(int argc, char *argv[])
 	BFVM::TestVM();
 	//BFVM::TestClass();
 	TestAStar();
-	//AStarV2(258);
 	//FirstPassSqrt2();
 	
 	/*
