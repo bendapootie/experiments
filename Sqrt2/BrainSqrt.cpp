@@ -475,6 +475,7 @@ public:
 		{
 			// Create a new instance
 			new_vm = new T();
+			_num_allocated++;
 		}
 		else
 		{
@@ -501,6 +502,7 @@ public:
 	}
 
 protected:
+	int _num_allocated = 0;
 	std::vector<T*> _available;
 };
 
@@ -571,13 +573,8 @@ public:
 
 	~AStar()
 	{
-		// TODO: Replace with single call to VM_POOL.FreeAll()
-		while (_queue.size() > 0)
-		{
-			const AStarNode& top = _queue.top();
-			VM_POOL.FreeVM(top._vm);
-			_queue.pop();
-		}
+		// Free up any resources held by _queue
+		EmptyQueue();
 	}
 
 	const AStarNode* GetTopNode() const
@@ -609,6 +606,17 @@ public:
 	void SetMaxNumNodesToProcess(int max_num_nodes)
 	{
 		_max_num_nodes = max_num_nodes;
+	}
+
+	// Sets parameters for queue trimming.
+	// If queue ever gets bigger than 'threshold', the bottom scoring values will be trimmed
+	// 'amount' is the percentage of the queue to trim off (0.8 = trim 80% of queue; 0.5 = trim 50%)
+	void SetQueueTrimSettings(int queue_trim_size_threshold, float queue_trim_amount)
+	{
+		assert(queue_trim_size_threshold >= 0);
+		assert(queue_trim_amount >= 0.f && queue_trim_amount <= 1.f);
+		_queue_trim_size_threshold = queue_trim_size_threshold;
+		_queue_trim_amount = queue_trim_amount;
 	}
 
 	void SetTargetOutput(std::string target_output)
@@ -656,17 +664,25 @@ public:
 				{
 					next_node.ComputeScore(_target_output, _target_instructions_per_output);
 
-					Hash h = next_node._vm->CalculateHash();
-					float previous_best = _hash_to_best_score[h.GetValue()];
-					// If "previous_best" is exactly 0.0, we assume it's just the default value and still add the node
-					if ((previous_best == 0.0f) || (next_node._score > previous_best))
+					if (_check_hash == false)
 					{
-						_hash_to_best_score[h.GetValue()] = next_node._score;
 						_queue.push(next_node);
 					}
 					else
 					{
-						//printf("Hash collided - %llx! - %0.4f : %0.4f\n", h.GetValue(), previous_best, next_node._score);
+						Hash h = next_node._vm->CalculateHash();
+						float previous_best = _hash_to_best_score[h.GetValue()];
+						// If "previous_best" is exactly 0.0, we assume it's just the default value and still add the node
+						if ((previous_best == 0.0f) || (next_node._score > previous_best))
+						{
+							_hash_to_best_score[h.GetValue()] = next_node._score;
+							_queue.push(next_node);
+						}
+						else
+						{
+							// Hash collided, don't add to queue and free up VM from pool
+							VM_POOL.FreeVM(next_node._vm);
+						}
 					}
 				}
 			}
@@ -677,6 +693,42 @@ public:
 		VM_POOL.FreeVM(top._vm);
 
 		_num_nodes_processed++;
+
+		// Trim queue if it gets too big
+		if ((_queue_trim_size_threshold > 0) && ((int)_queue.size() >= _queue_trim_size_threshold))
+		{
+			int old_queue_size = (int)_queue.size();
+			int num_to_keep = (int)(_queue_trim_size_threshold * _queue_trim_amount);
+			std::vector<AStarNode> nodes_to_keep;
+			nodes_to_keep.reserve(num_to_keep);
+
+			printf("Iterations:%d - queue size:%d", _num_nodes_processed, (int)_queue.size());
+
+			// Save off 'num_to_keep' nodes to be readded
+			for (int i = 0; i < num_to_keep; i++)
+			{
+				nodes_to_keep.push_back(_queue.top());
+				_queue.pop();
+			}
+
+			// Clean out all remaining nodes
+			EmptyQueue();
+			// Clear the node hash since all the nodes being kept are unique, and to free up memory
+			if (_check_hash)
+			{
+				_hash_to_best_score.clear();
+			}
+
+			// Add the saved ones back in
+			for (int i = 0; i < (int)nodes_to_keep.size(); i++)
+			{
+				_queue.push(nodes_to_keep[i]);
+			}
+			
+			printf("->%d", (int)_queue.size());
+
+			printf(" : i/c=%d/%d\n", (int)_queue.top()._vm->GetInstructions().size(), (int)_queue.top()._vm->GetOutput().size());
+		}
 	}
 
 protected:
@@ -684,6 +736,15 @@ protected:
 	{
 		// TODO: Verify we're not going to go off the tape (avoid BF code that wraps around)
 		assert((int)previous._vm->GetTapePointer() >= -delta_pos);
+
+		// early-out if data at target index is too far away to consider
+		uint8 data = previous._vm->GetData(delta_pos);
+		if (((next_output > data) && (next_output - data > 10)) ||
+			((next_output < data) && (data - next_output > 10)))
+		{
+			// data is too far away to consider this node
+			return false;
+		}
 
 		out_new_node = CloneNode(previous._vm);
 		BFVM& vm_ref = *out_new_node._vm;
@@ -698,13 +759,6 @@ protected:
 
 		// Add instructions to modify data at this position in the tape to match 'next_output'
 		// TODO: Support wraparound?
-		uint8 data = vm_ref.GetData(delta_pos);
-		if (((next_output > data) && (next_output - data > 10)) ||
-			((next_output < data) && (data - next_output > 10)))
-		{
-			// data is too far away to consider this node
-			return false;
-		}
 		increment = (next_output > data) ? 1 : -1;
 		for (int i = data; i != next_output; i += increment)
 		{
@@ -730,7 +784,19 @@ protected:
 		new_node._score = other._score;
 		return new_node;
 	}
-	
+
+	// Empties out the queue and frees up all associated VMs
+	void EmptyQueue()
+	{
+		// TODO: Replace with single call to VM_POOL.FreeAll()
+		while (_queue.size() > 0)
+		{
+			const AStarNode& top = _queue.top();
+			VM_POOL.FreeVM(top._vm);
+			_queue.pop();
+		}
+	}
+
 protected:
 	std::priority_queue<AStarNode> _queue;
 	std::string _target_output;
@@ -738,6 +804,9 @@ protected:
 	int _num_nodes_processed = 0;
 	int _max_num_nodes = 0;
 	float _target_instructions_per_output = 0.0f;
+	int _queue_trim_size_threshold = 0;
+	float _queue_trim_amount = 0.0f;
+	bool _check_hash = true;
 };
 
 
@@ -896,12 +965,14 @@ void AStarV2(int starting_pattern)
 
 void TestAStar()
 {
-	float ipc = 2.6f;		// Instructions per character
-	const int kMaxNodesToProcess = 500000;
+	float ipc = 2.5f;		// Instructions per character
+	int queue_trim_size_threshold = 2000 * 1000;	// 0 = don't ever trim
+	float queue_trim_amount = 0.5f;
+	const int kMaxNodesToProcess = 0 * 500 * 1000;	// 0 = no limit
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
 
-	std::vector<int> good_patterns = { 257,371,713,137,319,852,471,183,528,570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184 };
+	std::vector<int> good_patterns = { 257 };//, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
 
 	printf("Pattern,Steps,Score,Output Size,Num Instructions\n");
 
@@ -915,6 +986,7 @@ void TestAStar()
 		vm.Run();
 		AStar a;
 		a.SetTargetInstructionsPerOutput(ipc);
+		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
 
 		std::string target_output = SQRT_2.substr(0, 2 + (size_t)decimal_places_to_compute);
 		a.SetTargetOutput(target_output);
