@@ -625,9 +625,11 @@ public:
 		_target_output = target_output;
 	}
 	
-	void SetTargetInstructionsPerOutput(const float s)
+	void SetInstructionsPerOutputSettings(const float base_ipo, const float ipo_increment_per_trim = 0.f)
 	{
-		_target_instructions_per_output = s;
+		_target_instructions_per_output = base_ipo;
+		_current_instructions_per_output = _target_instructions_per_output;
+		_ipo_increment_per_trim = ipo_increment_per_trim;
 	}
 
 	void SetInitialState(const BFVM& vm)
@@ -663,7 +665,7 @@ public:
 				bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
 				if (use_node)
 				{
-					next_node.ComputeScore(_target_output, _target_instructions_per_output);
+					next_node.ComputeScore(_target_output, _current_instructions_per_output);
 
 					if (_check_hash == false)
 					{
@@ -698,13 +700,58 @@ public:
 		// Trim queue if it gets too big
 		if ((_queue_trim_size_threshold > 0) && ((int)_queue.size() >= _queue_trim_size_threshold))
 		{
-			int old_queue_size = (int)_queue.size();
-			int num_to_keep = (int)(_queue_trim_size_threshold * _queue_trim_amount);
-			std::vector<AStarNode> nodes_to_keep;
-			nodes_to_keep.reserve(num_to_keep);
+			TrimQueue();
+		}
+	}
 
-			printf("Iterations:%d - queue size:%d", (int)_num_nodes_processed, (int)_queue.size());
+protected:
+	void TrimQueue()
+	{
+		static bool kTrimEveryOther = false;
 
+		// If the output size of the best node hasn't gotten longer, adjust the scoring function parameters
+		int64 top_output_size = _queue.top()._vm->GetOutput().size();
+		if (top_output_size <= _longest_top_output_length)
+		{
+			// Output didn't get longer, increase scoring function parameters
+			_current_instructions_per_output += _ipo_increment_per_trim;
+		}
+		else
+		{
+			// Track output length of top node
+			_longest_top_output_length = top_output_size;
+			// Output improved, reset scoring function parameters
+			_current_instructions_per_output = _target_instructions_per_output;
+		}
+
+		int num_to_keep = (int)(_queue_trim_size_threshold * _queue_trim_amount);
+		std::vector<AStarNode> nodes_to_keep;
+		nodes_to_keep.reserve(num_to_keep);
+		printf("Iterations:%d - queue size:%d", (int)_num_nodes_processed, (int)_queue.size());
+
+		if (kTrimEveryOther)
+		{
+			int64 num_processed = 0;
+			while (!_queue.empty())
+			{
+				num_processed++;
+				const AStarNode& top = _queue.top();
+
+				// Decide if top should go in the keep list or be freed
+				float current_trim_amount = nodes_to_keep.size() / (float)num_processed;
+				if (current_trim_amount < _queue_trim_amount)
+				{
+					nodes_to_keep.push_back(top);
+				}
+				else
+				{
+					VM_POOL.FreeVM(top._vm);
+				}
+				_queue.pop();
+			}
+		}
+		else
+		{
 			// Save off 'num_to_keep' nodes to be readded
 			for (int i = 0; i < num_to_keep; i++)
 			{
@@ -714,25 +761,25 @@ public:
 
 			// Clean out all remaining nodes
 			EmptyQueue();
-			// Clear the node hash since all the nodes being kept are unique, and to free up memory
-			if (_check_hash)
-			{
-				_hash_to_best_score.clear();
-			}
-
-			// Add the saved ones back in
-			for (int i = 0; i < (int)nodes_to_keep.size(); i++)
-			{
-				_queue.push(nodes_to_keep[i]);
-			}
-			
-			printf("->%d", (int)_queue.size());
-
-			printf(" : i/c=%d/%d\n", (int)_queue.top()._vm->GetInstructions().size(), (int)_queue.top()._vm->GetOutput().size());
 		}
+
+		// Add the saved nodes back in
+		for (int i = 0; i < (int)nodes_to_keep.size(); i++)
+		{
+			_queue.push(nodes_to_keep[i]);
+		}
+
+		// Clear the node hash since all the nodes being kept are unique, and to free up memory
+		if (_check_hash)
+		{
+			_hash_to_best_score.clear();
+		}
+
+		printf("->%d", (int)_queue.size());
+
+		printf(" : i/c=%d/%d : %0.2f\n", (int)_queue.top()._vm->GetInstructions().size(), (int)_queue.top()._vm->GetOutput().size(), _current_instructions_per_output);
 	}
 
-protected:
 	bool GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos, AStarNode& out_new_node)
 	{
 		// TODO: Verify we're not going to go off the tape (avoid BF code that wraps around)
@@ -804,10 +851,18 @@ protected:
 	std::unordered_map<int64, float> _hash_to_best_score;
 	int64 _num_nodes_processed = 0;
 	int64 _max_num_nodes = 0;
-	float _target_instructions_per_output = 0.0f;
 	int _queue_trim_size_threshold = 0;
 	float _queue_trim_amount = 0.0f;
 	bool _check_hash = true;
+
+	// Parameters to control if and how _target_instructions_per_output is adjusted over time
+	float _target_instructions_per_output = 0.0f;
+	// Value to use in scoring function that can change over time
+	float _current_instructions_per_output = 0.0f;
+	// How much to increase _current_instructions_per_output if a trim happens without any increase in output length
+	float _ipo_increment_per_trim = 0.0f;
+	// Keeps track of how long the output was at the last trim to see if we're making progress
+	int _longest_top_output_length = 0;
 };
 
 
@@ -911,9 +966,10 @@ std::string BuildBFPattern(int pattern)
 
 void TestAStar()
 {
-	float ipc = 2.4f;		// Instructions per character
-	int queue_trim_size_threshold = 2000 * 1000;	// 0 = don't ever trim
-	float queue_trim_amount = 0.5f;
+	float ipo = 2.3;		// Instructions per output
+	float ipo_increment_per_trim = 0.0001f;
+	int queue_trim_size_threshold = 10000 * 1000;	// 0 = don't ever trim
+	float queue_trim_amount = 0.7f;
 	const int kMaxNodesToProcess = 0 * 500 * 1000;	// 0 = no limit
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
@@ -931,7 +987,7 @@ void TestAStar()
 		BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
 		vm.Run();
 		AStar a;
-		a.SetTargetInstructionsPerOutput(ipc);
+		a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim);
 		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
 
 		std::string target_output = SQRT_2.substr(0, 2 + (size_t)decimal_places_to_compute);
