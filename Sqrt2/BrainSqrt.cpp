@@ -98,6 +98,13 @@ std::string BF_LOTS_OF_9s = "-[->>[>]++++++>-[<+>-----]<[<]<]";
 
 std::string SQRT_2 = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
 
+template <class T>
+class PriorityQueue : public std::priority_queue<T> 
+{
+public:
+	const std::vector<T>& GetRawList() const { return this->c; }
+};
+
 float RandomFloat()
 {
 	return (float(rand())/float(RAND_MAX));
@@ -779,6 +786,8 @@ protected:
 	void TrimQueue()
 	{
 		static bool kTrimEveryOther = false;
+		
+		//PrintDebugQueueStats();
 
 		// If the output size of the best node hasn't gotten longer, adjust the scoring function parameters
 		int64 top_output_size = _queue.top()._vm->GetOutput().size();
@@ -929,9 +938,26 @@ protected:
 			_queue.pop();
 		}
 	}
+	
+	void PrintDebugQueueStats()
+	{
+		std::map<int, int> count;
+		auto list = _queue.GetRawList();
+		for (int i = 0; i < list.size(); i++)
+		{
+			int size = list[i]._vm->GetOutput().size();
+			count[size]++;
+		}
+		for (auto it = count.begin(); it != count.end(); it++)
+		{
+			printf("(%d:%d)", it->first, it->second);
+		}
+		printf("/n");
+	}
 
 protected:
-	std::priority_queue<AStarNode> _queue;
+	//std::priority_queue<AStarNode> _queue;
+	PriorityQueue<AStarNode> _queue;
 	std::string _target_output;
 	std::unordered_map<int64, float> _hash_to_best_score;
 	AStarNode _best_solution;
@@ -1054,16 +1080,16 @@ std::string BuildBFPattern(int pattern)
 
 void TestAStar()
 {
-	float ipo = 2.5;		// Instructions per output
+	float ipo = 2.6;		// Instructions per output
 	float ipo_increment_per_trim = 0.0001f;
 	float random_score = 0.f;
 	int queue_trim_size_threshold = 250 * 1000;	// 0 = don't ever trim
 	float queue_trim_amount = 0.5f;
-	const int kMaxNodesToProcess = 1000 * 1000;	// 0 = no limit
+	const int kMaxNodesToProcess = 500 * 1000;	// 0 = no limit
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
 
-	std::vector<int> good_patterns = { 257 };// { 257, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
+	std::vector<int> good_patterns = {257}; //{ 257, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
 
 	printf("Seconds,Pattern,Steps,Score,Output Size,Num Instructions\n");
 
