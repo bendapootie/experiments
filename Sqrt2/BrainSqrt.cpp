@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <time.h>
+#include <cstdlib>
 #include <string>
 #include <queue>
 #include <assert.h>
@@ -96,6 +97,11 @@ std::string BF_LOTS_OF_9s = "-[->>[>]++++++>-[<+>-----]<[<]<]";
 
 
 std::string SQRT_2 = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
+
+float RandomFloat()
+{
+	return (float(rand())/float(RAND_MAX));
+}
 
 class Hash
 {
@@ -548,13 +554,22 @@ public:
 		}
 #else
 		{
+			/*
 			// Estimated Cost = (Num Instructions Used) + (Num Output Characters Remaining) * (Magic Scalar)
 			float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * target_instructions_per_output;
 			// Negate cost to get score because we want to smallest cost to have the biggest score
 			score = -cost;
+			*/
+			const float num_setup_instructions = 40.f;
+			const float countable_instructions = _vm->GetInstructions().size() - num_setup_instructions;
+			float ipo_solved = (float)countable_instructions / (float)_vm->GetOutput().size();
+			float solved_alpha = (float)_vm->GetOutput().size() / (float)target_output.size();
+			score = solved_alpha * ipo_solved + (1.f - solved_alpha) * target_instructions_per_output;
+			score = -score;
 		}
 #endif
-	
+
+		score += RandomFloat() * 0.001f;
 		_score = score;
 	}
 
@@ -586,11 +601,19 @@ public:
 		}
 		return nullptr;
 	}
+	
+	const AStarNode* GetBestResult() const
+	{
+		if (_best_solution._vm != nullptr)
+		{
+			return &_best_solution;
+		}
+		return nullptr;
+	}
 
 	bool IsFinished() const
 	{
 		return _queue.empty() ||
-			(_queue.top()._vm->GetOutput().size() == _target_output.size()) ||
 			((_max_num_nodes > 0) && (_num_nodes_processed > _max_num_nodes));
 	}
 
@@ -646,6 +669,32 @@ public:
 		// Pop the highest scoring node
 		const AStarNode top = _queue.top();
 		_queue.pop();
+		
+		// Check if top is a solution
+		if (top._vm->GetOutput().size() == _target_output.size())
+		{
+			// Found solution! Compare it with previous best
+			if (_best_solution._vm == nullptr)
+			{
+				_best_solution = top;
+				return;
+			}
+			if (top._vm->GetInstructions().size() < _best_solution._vm->GetInstructions().size())
+			{
+				printf("New best! - %d\n", top._vm->GetInstructions().size());
+				printf("%s", top._vm->GetInstructions().c_str());
+				VM_POOL.FreeVM(_best_solution._vm);
+				_best_solution = top;
+			}
+			else
+			{
+				// not a new best
+				VM_POOL.FreeVM(top._vm);
+			}
+			
+			// quit out... nothing else to do
+			return;
+		}
 
 		// Find the next character to output
 		// TODO: If the output string is complete, can we stop?!?
@@ -849,6 +898,7 @@ protected:
 	std::priority_queue<AStarNode> _queue;
 	std::string _target_output;
 	std::unordered_map<int64, float> _hash_to_best_score;
+	AStarNode _best_solution;
 	int64 _num_nodes_processed = 0;
 	int64 _max_num_nodes = 0;
 	int _queue_trim_size_threshold = 0;
@@ -966,10 +1016,10 @@ std::string BuildBFPattern(int pattern)
 
 void TestAStar()
 {
-	float ipo = 2.3;		// Instructions per output
+	float ipo = 2.5;		// Instructions per output
 	float ipo_increment_per_trim = 0.0001f;
-	int queue_trim_size_threshold = 10000 * 1000;	// 0 = don't ever trim
-	float queue_trim_amount = 0.7f;
+	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
+	float queue_trim_amount = 0.5f;
 	const int kMaxNodesToProcess = 0 * 500 * 1000;	// 0 = no limit
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
@@ -1040,6 +1090,10 @@ void TestAStar()
 
 int main(int argc, char *argv[])
 {
+	time_t seed = time(nullptr);
+	printf("seed = %ld\n", seed);
+	srand(seed);
+	
 	BFVM::TestVM();
 	//BFVM::TestClass();
 	TestAStar();
