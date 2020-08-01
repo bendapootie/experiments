@@ -342,7 +342,7 @@ public:
 
 			case '#':
 				// todo - support breakpoints?
-				_ip = _ip;
+				_ip += 0;
 				break;
 
 			default:
@@ -447,6 +447,7 @@ public:
 		BFVM vm_2(vm_1);
 		vm_1.Run();
 		const std::string& out = vm_2.GetOutput();
+		assert(out == "4");
 	}
 
 private:
@@ -537,7 +538,7 @@ public:
 		return _score < rhs._score;
 	}
 
-	void ComputeScore(const std::string target_output, const float target_instructions_per_output)
+	void ComputeScore(const std::string target_output, const float target_instructions_per_output, const float random_score)
 	{
 		assert(_vm != nullptr);
 		
@@ -569,7 +570,10 @@ public:
 		}
 #endif
 
-		score += RandomFloat() * 0.001f;
+		if (random_score > 0.f)
+		{
+			score += RandomFloat() * random_score;
+		}
 		_score = score;
 	}
 
@@ -648,11 +652,12 @@ public:
 		_target_output = target_output;
 	}
 	
-	void SetInstructionsPerOutputSettings(const float base_ipo, const float ipo_increment_per_trim = 0.f)
+	void SetInstructionsPerOutputSettings(const float base_ipo, const float ipo_increment_per_trim = 0.f, const float random_score =0.f)
 	{
 		_target_instructions_per_output = base_ipo;
 		_current_instructions_per_output = _target_instructions_per_output;
 		_ipo_increment_per_trim = ipo_increment_per_trim;
+		_random_score = random_score;
 	}
 
 	void SetInitialState(const BFVM& vm)
@@ -681,7 +686,7 @@ public:
 			}
 			if (top._vm->GetInstructions().size() < _best_solution._vm->GetInstructions().size())
 			{
-				printf("New best! - %d\n", top._vm->GetInstructions().size());
+				printf("New best! - %d\n", (int)top._vm->GetInstructions().size());
 				printf("%s", top._vm->GetInstructions().c_str());
 				VM_POOL.FreeVM(_best_solution._vm);
 				_best_solution = top;
@@ -714,7 +719,7 @@ public:
 				bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
 				if (use_node)
 				{
-					next_node.ComputeScore(_target_output, _current_instructions_per_output);
+					next_node.ComputeScore(_target_output, _current_instructions_per_output, _random_score);
 
 					if (_check_hash == false)
 					{
@@ -911,6 +916,8 @@ protected:
 	float _current_instructions_per_output = 0.0f;
 	// How much to increase _current_instructions_per_output if a trim happens without any increase in output length
 	float _ipo_increment_per_trim = 0.0f;
+	// How big of a random factor to add to each score for variability
+	float _random_score = 0.f;
 	// Keeps track of how long the output was at the last trim to see if we're making progress
 	int _longest_top_output_length = 0;
 };
@@ -1018,6 +1025,7 @@ void TestAStar()
 {
 	float ipo = 2.5;		// Instructions per output
 	float ipo_increment_per_trim = 0.0001f;
+	float random_score = 0.f;
 	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
 	float queue_trim_amount = 0.5f;
 	const int kMaxNodesToProcess = 0 * 500 * 1000;	// 0 = no limit
@@ -1037,7 +1045,7 @@ void TestAStar()
 		BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
 		vm.Run();
 		AStar a;
-		a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim);
+		a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim, random_score);
 		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
 
 		std::string target_output = SQRT_2.substr(0, 2 + (size_t)decimal_places_to_compute);
