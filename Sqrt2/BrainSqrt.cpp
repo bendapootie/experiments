@@ -538,43 +538,36 @@ public:
 		return _score < rhs._score;
 	}
 
-	void ComputeScore(const std::string target_output, const float target_instructions_per_output, const float random_score)
+	void ComputeScore(const std::string& target_output, const float target_instructions_per_output, const float random_score)
 	{
 		assert(_vm != nullptr);
 		
-		float score = 0.0f;
-#if 0
-		if (target_instructions_per_output > 0.0f)
-		{
-			// A clear target was given, use that to determine score
-			// score = number of instructions remaining per output char
-			// Note - This approach leans into targeting a specific instruction length
-			const float target_num_instructions = target_output.size() * target_instructions_per_output;
+		float num_setup_instructions = 40.f;
 		
-			score = (target_num_instructions - _vm->GetInstructions().size()) / (target_output.size() - _vm->GetOutput().size());
-		}
-#else
-		{
-			/*
-			// Estimated Cost = (Num Instructions Used) + (Num Output Characters Remaining) * (Magic Scalar)
-			float cost = _vm->GetInstructions().size() + (target_output.size() - _vm->GetOutput().size()) * target_instructions_per_output;
-			// Negate cost to get score because we want to smallest cost to have the biggest score
-			score = -cost;
-			*/
-			const float num_setup_instructions = 40.f;
-			const float countable_instructions = _vm->GetInstructions().size() - num_setup_instructions;
-			float ipo_solved = (float)countable_instructions / (float)_vm->GetOutput().size();
-			float solved_alpha = (float)_vm->GetOutput().size() / (float)target_output.size();
-			score = solved_alpha * ipo_solved + (1.f - solved_alpha) * target_instructions_per_output;
-			score = -score;
-		}
-#endif
-
+		_score = RawComputeScore(
+			num_setup_instructions,
+			_vm->GetInstructions().size(),
+			_vm->GetOutput().size(),
+			target_output.size(),
+			target_instructions_per_output,
+			random_score
+		);
+	}
+	
+	static float RawComputeScore(float setup_instructions, int solved_num_instructions, int solved_output_size, const int target_output_size, const float target_instructions_per_output, const float random_score)
+	{
+		float score = 0.f;
+		const float countable_instructions = solved_num_instructions - setup_instructions;
+		float ipo_solved = (float)countable_instructions / (float)solved_output_size;
+		float solved_alpha = (float)solved_output_size / (float)target_output_size;
+		score = solved_alpha * ipo_solved + (1.f - solved_alpha) * target_instructions_per_output;
+		score = -score;
+		
 		if (random_score > 0.f)
 		{
 			score += RandomFloat() * random_score;
 		}
-		_score = score;
+		return score;
 	}
 
 public:
