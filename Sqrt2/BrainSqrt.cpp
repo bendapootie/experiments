@@ -704,37 +704,17 @@ public:
 			next_output_char = _target_output[top_output.size()];
 		}
 
+		TryAddNodeToQueue(
+			GenerateTestNodeWithInstructions(top, "[<]>"));
+		TryAddNodeToQueue(
+			GenerateTestNodeWithInstructions(top, "[>]<"));
+
 		for (int i = -5; i <= 5; i++)
 		{
 			if ((int)top._vm->GetTapePointer() >= -i)
 			{
-				AStarNode next_node;
-				bool use_node = GenerateTestNode(top, next_output_char, i, next_node);
-				if (use_node)
-				{
-					next_node.ComputeScore(_target_output, _current_instructions_per_output, _random_score);
-
-					if (_check_hash == false)
-					{
-						_queue.push(next_node);
-					}
-					else
-					{
-						Hash h = next_node._vm->CalculateHash();
-						float previous_best = _hash_to_best_score[h.GetValue()];
-						// If "previous_best" is exactly 0.0, we assume it's just the default value and still add the node
-						if ((previous_best == 0.0f) || (next_node._score > previous_best))
-						{
-							_hash_to_best_score[h.GetValue()] = next_node._score;
-							_queue.push(next_node);
-						}
-						else
-						{
-							// Hash collided, don't add to queue and free up VM from pool
-							VM_POOL.FreeVM(next_node._vm);
-						}
-					}
-				}
+				AStarNode next_node = GenerateTestNode(top, next_output_char, i);
+				TryAddNodeToQueue(next_node);
 			}
 		}
 
@@ -752,6 +732,50 @@ public:
 	}
 
 protected:
+	bool TryAddNodeToQueue(AStarNode node)
+	{
+		// don't use node if its vm is null'
+		if (node._vm == nullptr)
+		{
+			return false;
+		}
+		
+		if (_best_solution._vm != nullptr)
+		{
+			if (node._vm->GetInstructions().size() >= _best_solution._vm->GetInstructions().size())
+			{
+				// new node is worse than knows solution; punt
+				VM_POOL.FreeVM(node._vm);
+				node._vm = nullptr;
+				return false;
+			}
+		}
+		
+		node.ComputeScore(_target_output, _current_instructions_per_output, _random_score);
+
+		if (_check_hash == false)
+		{
+			_queue.push(node);
+		}
+		else
+		{
+			Hash h = node._vm->CalculateHash();
+			float previous_best = _hash_to_best_score[h.GetValue()];
+			// If "previous_best" is exactly 0.0, we assume it's just the default value and still add the node
+			if ((previous_best == 0.0f) || (node._score > previous_best))
+			{
+				_hash_to_best_score[h.GetValue()] = node._score;
+				_queue.push(node);
+			}
+			else
+			{
+				// Hash collided, don't add to queue and free up VM from pool
+				VM_POOL.FreeVM(node._vm);
+				node._vm = nullptr;
+			}
+		}
+	}
+	
 	void TrimQueue()
 	{
 		static bool kTrimEveryOther = false;
@@ -826,11 +850,24 @@ protected:
 
 		printf(" : i/c=%d/%d : %0.2f\n", (int)_queue.top()._vm->GetInstructions().size(), (int)_queue.top()._vm->GetOutput().size(), _current_instructions_per_output);
 	}
+	
+	AStarNode GenerateTestNodeWithInstructions(const AStarNode& previous, const std::string& instructions)
+	{
+		AStarNode out_new_node = CloneNode(previous._vm);
+		BFVM& vm_ref = *out_new_node._vm;
+		
+		vm_ref.GetMutableInstructions() += instructions;
+		
+		vm_ref.Run();
+		return out_new_node;
+	}
 
-	bool GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos, AStarNode& out_new_node)
+	AStarNode GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos)
 	{
 		// TODO: Verify we're not going to go off the tape (avoid BF code that wraps around)
 		assert((int)previous._vm->GetTapePointer() >= -delta_pos);
+		
+		AStarNode out_new_node;
 
 		// early-out if data at target index is too far away to consider
 		uint8 data = previous._vm->GetData(delta_pos);
@@ -838,7 +875,8 @@ protected:
 			((next_output < data) && (data - next_output > 10)))
 		{
 			// data is too far away to consider this node
-			return false;
+			assert(out_new_node._vm == nullptr);
+			return out_new_node;
 		}
 
 		out_new_node = CloneNode(previous._vm);
@@ -868,7 +906,7 @@ protected:
 
 		assert(vm_ref.GetOutput().back() == next_output);
 
-		return true;
+		return out_new_node;
 	}
 
 	// TODO: The existance of this function makes me sad :(
@@ -1019,9 +1057,9 @@ void TestAStar()
 	float ipo = 2.5;		// Instructions per output
 	float ipo_increment_per_trim = 0.0001f;
 	float random_score = 0.f;
-	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
+	int queue_trim_size_threshold = 250 * 1000;	// 0 = don't ever trim
 	float queue_trim_amount = 0.5f;
-	const int kMaxNodesToProcess = 0 * 500 * 1000;	// 0 = no limit
+	const int kMaxNodesToProcess = 1000 * 1000;	// 0 = no limit
 	int decimal_places_to_compute = 1000;
 	int vm_tape_size = 500;
 
