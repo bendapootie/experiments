@@ -698,7 +698,6 @@ public:
 		AStarNode new_node(new_vm);
 		bool added = TryAddNodeToQueue(new_node);
 		assert(added);
-		//_queue.push(new_node);
 	}
 
 	// Pop the Node with the lowest score and add all its potential next steps
@@ -827,6 +826,7 @@ protected:
 				node._vm = nullptr;
 			}
 		}
+		return true;
 	}
 	
 	void TrimQueue()
@@ -1237,7 +1237,7 @@ void AnalyzeInstructions(std::string initial_state, std::string instructions)
 			{
 				inst += *ip;
 			} while (*ip++ != '.');
-			printf("%d - %s\n", inst.size(), inst.c_str());
+			printf("%d - %s\n", (int)inst.size(), inst.c_str());
 			op++;
 		}
 	}
@@ -1322,7 +1322,7 @@ void TestAStar()
 int main(int argc, char *argv[])
 {
 	time_t seed = time(nullptr);
-	printf("seed = %ld\n", seed);
+	printf("seed = %lld\n", seed);
 	srand(seed);
 	
 	BFVM::TestVM();
