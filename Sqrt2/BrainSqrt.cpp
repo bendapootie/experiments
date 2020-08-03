@@ -1,3 +1,8 @@
+const bool kHideAllDebug = true;
+
+const bool kPrintfSpamNewBests = !kHideAllDebug && true;
+const bool kPrintfSpamTrimUpdates = !kHideAllDebug && true;
+
 // Program to help generate BrainFuck code that outputs
 // the square root of 2 to 1000 decimal places
 
@@ -97,6 +102,11 @@ std::string BF_LOTS_OF_9s = "-[->>[>]++++++>-[<+>-----]<[<]<]";
 
 
 std::string SQRT_2 = "1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488472";
+std::string E = "2.7182818284590452353602874713526624977572470936999595749669676277240766303535475945713821785251664274274663919320030599218174135966290435729003342952605956307381323286279434907632338298807531952510190115738341879307021540891499348841675092447614606680822648001684774118537423454424371075390777449920695517027618386062613313845830007520449338265602976067371132007093287091274437470472306969772093101416928368190255151086574637721112523897844250569536967707854499699679468644549059879316368892300987931277361782154249992295763514822082698951936680331825288693984964651058209392398294887933203625094431173012381970684161403970198376793206832823764648042953118023287825098194558153017567173613320698112509961818815930416903515988885193458072738667385894228792284998920868058257492796104841984443634632449684875602336248270419786232090021609902353043699418491463140934317381436405462531520961836908887070167683964243781405927145635490613031072085103837505101157477041718986106873969655212671546889570350354";
+std::string PHI = "1.6180339887498948482045868343656381177203091798057628621354486227052604628189024497072072041893911374847540880753868917521266338622235369317931800607667263544333890865959395829056383226613199282902678806752087668925017116962070322210432162695486262963136144381497587012203408058879544547492461856953648644492410443207713449470495658467885098743394422125448770664780915884607499887124007652170575179788341662562494075890697040002812104276217711177780531531714101170466659914669798731761356006708748071013179523689427521948435305678300228785699782977834784587822891109762500302696156170025046433824377648610283831268330372429267526311653392473167111211588186385133162038400522216579128667529465490681131715993432359734949850904094762132229810172610705961164562990981629055520852479035240602017279974717534277759277862561943208275051312181562855122248093947123414517022373580577278616008688382952304592647878017889921990270776903895321968198615143780314997411069260886742962267575605231727775203536139362";
+std::string PI = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989";
+std::string TAU = "6.2831853071795864769252867665590057683943387987502116419498891846156328125724179972560696506842341359642961730265646132941876892191011644634507188162569622349005682054038770422111192892458979098607639288576219513318668922569512964675735663305424038182912971338469206972209086532964267872145204982825474491740132126311763497630418419256585081834307287357851807200226610610976409330427682939038830232188661145407315191839061843722347638652235862102370961489247599254991347037715054497824558763660238982596673467248813132861720427898927904494743814043597218874055410784343525863535047693496369353388102640011362542905271216555715426855155792183472743574429368818024499068602930991707421015845593785178470840399122242580439217280688363196272595495426199210374144226999999967459560999021194634656321926371900489189106938166052850446165066893700705238623763420200062756775057731750664167628412343553382946071965069808575109374623191257277647075751875039155637155610643424536132260038557532223918184328403978";
+std::string CONWAYS_CONSTANT = "1.3035772690342963912570991121525518907307025046594048757548613906285508878524615571268157668644252255534713930470949026839628498935515543473758248566910889777702165760066666136181957581499714162117477679231324299325720143046277132953880169252753163112124160278974455631122119289176594544284422105034839844304843503659788616365686961229330052179678121274207274283384185853897804629753621113325713155961142841646364930650685182742924915750807604716554873289903140679626277521098230185009804867680417112703692827704555699254104725325529600239674161517613007576995239414709209627297796525283812895292399842146646970063628087185984737643242596375377861487149180417794388256454962961267267631703413998923868380017499339163832550419738743376404644230963416377342999964027953477812315036938111361969193101105512224328065334872949851635350180008618980044269569620390894963960410593894526262897484805720049895205894083154511527464184151251802473020019379677783662140660911047529322875883638588769569619942051649";
 
 template <class T>
 class PriorityQueue : public std::priority_queue<T> 
@@ -377,21 +387,42 @@ public:
 		return h;
 	}
 	
-	void DebugTape(int min = 0, int count = 100) const
+	void DebugTape(int chars_per_line = 20) const
 	{
-		int chars_per_line = 10;
-		for (int i = 0; i < count; i++)
-		{
-			printf("%3d%s%1c%s%s",
-				_tape[i],
-				i == _tp ? "(" : "'",
-				_tape[i],
-				i == _tp ? ")" : "'",
-				i%chars_per_line == chars_per_line - 1?"\n":" ");
-		}
 		printf("\n");
+		int line_index = 0;
+		bool line_has_non_zero = false;
+		do
+		{
+			line_has_non_zero = false;
+			printf("%4d :", line_index);
+			for (int i = line_index; i < line_index + chars_per_line; i++)
+			{
+				uint8 c = _tape[i];
+				// Figure out how to show where the tape pointer is
+				const char* tape_open = "(";
+				const char* tape_close = ")";
+				const char* prefix = (i == _tp) ? tape_open : (i != line_index && i == _tp + 1 ? tape_close : " ");
+				const char* suffix = (i + 1 != line_index + chars_per_line) ? "" : (i == _tp ? tape_close : " ");
+				printf("%s", prefix);
+				if (c >= 32 && c <= 126)
+				{
+					printf("'%c", c);
+				}
+				else
+				{
+					printf("%02x", c);
+				}
+				printf("%s", suffix);
+
+				// Track if any non-zeros are found in this line
+				line_has_non_zero |= (c != 0);
+			}
+			line_index += chars_per_line;
+			printf("\n");
+		} while (line_has_non_zero);
 	}
-	
+
 	const std::string& GetOutput() const
 	{
 		return _output;
@@ -623,7 +654,7 @@ public:
 
 	bool Succeeded() const
 	{
-		return IsFinished() && ((_max_num_nodes == 0) || (_num_nodes_processed < _max_num_nodes));
+		return IsFinished() && (GetBestResult() != nullptr);
 	}
 
 	int64 GetNumNodesProcessed() const
@@ -665,7 +696,9 @@ public:
 		// Clone the passed in VM and push it on the A* search queue
 		BFVM* new_vm = VM_POOL.CloneVM(vm);
 		AStarNode new_node(new_vm);
-		_queue.push(new_node);
+		bool added = TryAddNodeToQueue(new_node);
+		assert(added);
+		//_queue.push(new_node);
 	}
 
 	// Pop the Node with the lowest score and add all its potential next steps
@@ -675,8 +708,16 @@ public:
 		const AStarNode top = _queue.top();
 		_queue.pop();
 		
+		const int top_output_size = top._vm->GetOutput().size();
+		if ((_length_to_best_solution[top_output_size].size() == 0) ||
+			(_length_to_best_solution[top_output_size].size() > top._vm->GetInstructions().size()))
+		{
+			_length_to_best_solution[top_output_size] = top._vm->GetInstructions();
+			_print_all_bests_next_trim = true;
+		}
+
 		// Check if top is a solution
-		if (top._vm->GetOutput().size() == _target_output.size())
+		if (top_output_size == _target_output.size())
 		{
 			// Found solution! Compare it with previous best
 			if (_best_solution._vm == nullptr)
@@ -686,8 +727,11 @@ public:
 			}
 			if (top._vm->GetInstructions().size() < _best_solution._vm->GetInstructions().size())
 			{
-				printf("New best! - %d\n", (int)top._vm->GetInstructions().size());
-				printf("%s", top._vm->GetInstructions().c_str());
+				if (kPrintfSpamNewBests)
+				{
+					printf("New best! - %d\n", (int)top._vm->GetInstructions().size());
+					printf("%s\n", top._vm->GetInstructions().c_str());
+				}
 				VM_POOL.FreeVM(_best_solution._vm);
 				_best_solution = top;
 			}
@@ -711,10 +755,12 @@ public:
 			next_output_char = _target_output[top_output.size()];
 		}
 
-		TryAddNodeToQueue(
-			GenerateTestNodeWithInstructions(top, "[<]>"));
-		TryAddNodeToQueue(
-			GenerateTestNodeWithInstructions(top, "[>]<"));
+		bool use_big_shift_nodes = false;
+		if (use_big_shift_nodes)
+		{
+			TryAddNodeToQueue(GenerateTestNodeWithInstructions(top, "[<]>"));
+			TryAddNodeToQueue(GenerateTestNodeWithInstructions(top, "[>]<"));
+		}
 
 		for (int i = -5; i <= 5; i++)
 		{
@@ -786,8 +832,20 @@ protected:
 	void TrimQueue()
 	{
 		static bool kTrimEveryOther = false;
-		
-		//PrintDebugQueueStats();
+		static bool kTrimPerOutputLength = true;
+		assert(_queue_trim_amount >= 0.f && _queue_trim_amount <= 1.f);
+
+		static bool print_stats = false;
+		if (print_stats)
+		{
+			PrintDebugQueueStats();
+		}
+
+		if (_print_all_bests_next_trim)
+		{
+			PrintDebugAllBests();
+			_print_all_bests_next_trim = false;
+		}
 
 		// If the output size of the best node hasn't gotten longer, adjust the scoring function parameters
 		int64 top_output_size = _queue.top()._vm->GetOutput().size();
@@ -805,9 +863,41 @@ protected:
 		}
 
 		int num_to_keep = (int)(_queue_trim_size_threshold * _queue_trim_amount);
+		std::map<int, int> size_to_num_to_keep;
+
+		if (kTrimPerOutputLength)
+		{
+			int kKeepAllThreshold = 500;
+
+			// First, count how many nodes there are per output length
+			auto list = _queue.GetRawList();
+			for (int i = 0; i < list.size(); i++)
+			{
+				int size = list[i]._vm->GetOutput().size();
+				size_to_num_to_keep[size]++;
+			}
+
+			// Then, scale the num to keep by the trim amount
+			// also, recalculate num_to_keep
+			num_to_keep = 0;
+			for (auto it : size_to_num_to_keep)
+			{
+				// Only trim this size bucket if there are more than the threshold allows
+				if (it.second > kKeepAllThreshold)
+				{
+					int num_for_size = (int)std::ceil(it.second * _queue_trim_amount);
+					num_to_keep += num_for_size;
+					size_to_num_to_keep[it.first] = num_for_size;
+				}
+			}
+		}
+
 		std::vector<AStarNode> nodes_to_keep;
 		nodes_to_keep.reserve(num_to_keep);
-		printf("Iterations:%d - queue size:%d", (int)_num_nodes_processed, (int)_queue.size());
+		if (kPrintfSpamTrimUpdates)
+		{
+			printf("Iterations:%d - queue size:%d", (int)_num_nodes_processed, (int)_queue.size());
+		}
 
 		if (kTrimEveryOther)
 		{
@@ -833,9 +923,29 @@ protected:
 		else
 		{
 			// Save off 'num_to_keep' nodes to be readded
-			for (int i = 0; i < num_to_keep; i++)
+			while (nodes_to_keep.size() < num_to_keep)
 			{
-				nodes_to_keep.push_back(_queue.top());
+				AStarNode top = _queue.top();
+				if (kTrimPerOutputLength)
+				{
+					int size = top._vm->GetOutput().size();
+					if (size_to_num_to_keep[size] > 0)
+					{
+						// Keep the best 'x' scoring nodes for each size
+						nodes_to_keep.push_back(top);
+						size_to_num_to_keep[size]--;
+					}
+					else
+					{
+						// We already have enough of this size, just release the vm
+						VM_POOL.FreeVM(top._vm);
+					}
+				}
+				else
+				{
+					// Keep the best 'x' scoring nodes from the queue
+					nodes_to_keep.push_back(top);
+				}
 				_queue.pop();
 			}
 
@@ -855,9 +965,11 @@ protected:
 			_hash_to_best_score.clear();
 		}
 
-		printf("->%d", (int)_queue.size());
-
-		printf(" : i/c=%d/%d : %0.2f\n", (int)_queue.top()._vm->GetInstructions().size(), (int)_queue.top()._vm->GetOutput().size(), _current_instructions_per_output);
+		if (kPrintfSpamTrimUpdates)
+		{
+			printf("->%d", (int)_queue.size());
+			printf(" : i/c=%d/%d : %0.2f\n", (int)_queue.top()._vm->GetInstructions().size(), (int)_queue.top()._vm->GetOutput().size(), _current_instructions_per_output);
+		}
 	}
 	
 	AStarNode GenerateTestNodeWithInstructions(const AStarNode& previous, const std::string& instructions)
@@ -952,7 +1064,21 @@ protected:
 		{
 			printf("(%d:%d)", it->first, it->second);
 		}
-		printf("/n");
+		printf("\n");
+	}
+
+	void PrintDebugAllBests()
+	{
+		int previous_key = -1;
+		for (auto it = _length_to_best_solution.rbegin(); it != _length_to_best_solution.rend(); it++)
+		{
+			std::string& previous_string = _length_to_best_solution[previous_key];
+			if (previous_key == -1 || strncmp(previous_string.c_str(), it->second.c_str(), it->second.size()) != 0)
+			{
+				printf("%d : %s\n", it->first, it->second.c_str());
+			}
+			previous_key = it->first;
+		}
 	}
 
 protected:
@@ -966,6 +1092,9 @@ protected:
 	int _queue_trim_size_threshold = 0;
 	float _queue_trim_amount = 0.0f;
 	bool _check_hash = true;
+
+	std::map<int, std::string> _length_to_best_solution;
+	bool _print_all_bests_next_trim = false;
 
 	// Parameters to control if and how _target_instructions_per_output is adjusted over time
 	float _target_instructions_per_output = 0.0f;
@@ -1077,17 +1206,54 @@ std::string BuildBFPattern(int pattern)
 	return output_string;
 }
 
+void AnalyzeInstructions(std::string initial_state, std::string instructions)
+{
+	int chars_per_line = 20;
+
+	printf("Initial state ------------------------------------\n");
+	printf("%s\n", initial_state.c_str());
+	BFVM vm(initial_state.c_str(), kDefaultTapeSize, BFVM::OutputStyle::InternalBuffer);
+	vm.Run();
+	vm.DebugTape(chars_per_line);
+
+	printf("Instructions -------------------------------------\n");
+	printf("%s\n", instructions.c_str());
+	vm.Initialize(instructions.c_str(), kDefaultTapeSize, BFVM::OutputStyle::InternalBuffer);
+	vm.Run();
+	printf("Output -----\n%s\n", vm.GetOutput().c_str());
+	vm.DebugTape(chars_per_line);
+
+	bool analyze_output = true;
+	if (analyze_output)
+	{
+		std::string non_initial_instructions = instructions.substr(initial_state.size());
+		const char* op = vm.GetOutput().c_str();
+		const char* ip = non_initial_instructions.c_str();
+		while (*op)
+		{
+			printf("'%c' - ", *op);
+			std::string inst = "";
+			do
+			{
+				inst += *ip;
+			} while (*ip++ != '.');
+			printf("%d - %s\n", inst.size(), inst.c_str());
+			op++;
+		}
+	}
+}
 
 void TestAStar()
 {
 	float ipo = 2.6;		// Instructions per output
-	float ipo_increment_per_trim = 0.0001f;
-	float random_score = 0.f;
-	int queue_trim_size_threshold = 250 * 1000;	// 0 = don't ever trim
+	float ipo_increment_per_trim = 0.f;	// 0.0001f;
+	float random_score = 0.0f; // 0.001f;
+	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
 	float queue_trim_amount = 0.5f;
-	const int kMaxNodesToProcess = 500 * 1000;	// 0 = no limit
+	const int kMaxNodesToProcess = 50 * 1000;	// 0 = no limit
+	std::string target_output_string = SQRT_2;
 	int decimal_places_to_compute = 1000;
-	int vm_tape_size = 500;
+	int vm_tape_size = 400;
 
 	std::vector<int> good_patterns = {257}; //{ 257, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
 
@@ -1105,7 +1271,7 @@ void TestAStar()
 		a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim, random_score);
 		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
 
-		std::string target_output = SQRT_2.substr(0, 2 + (size_t)decimal_places_to_compute);
+		std::string target_output = target_output_string.substr(0, 2 + (size_t)decimal_places_to_compute);
 		a.SetTargetOutput(target_output);
 		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
 
@@ -1134,7 +1300,7 @@ void TestAStar()
 
 		if (a.Succeeded())
 		{
-			const AStarNode* solution = a.GetTopNode();
+			const AStarNode* solution = a.GetBestResult();
 			const std::string& str = solution->_vm->GetInstructions();
 
 			if (best_solution.size() == 0 || (str.size() < best_solution.size()))
@@ -1147,7 +1313,7 @@ void TestAStar()
 		printf("\n");
 	}
 
-	printf("\n\nBest Solution...\n%s\n%d characters\nStarting Pattern - %d",
+	printf("\n\nBest Solution...\n%s\n%d characters\nStarting Pattern - %d\n",
 		best_solution.c_str(),
 		int(best_solution.size()),
 		best_starting_pattern);
@@ -1163,19 +1329,34 @@ int main(int argc, char *argv[])
 	//BFVM::TestClass();
 	TestAStar();
 	//FirstPassSqrt2();
+
+	// First 773 characters of 2454 run
+	// "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.--.>++.>.-.>.>>.>+.<<.<<+.<.--.>.-..+.>.<.<++.>.>..>.<<.<.-.<<.<<.+.>>.>+.>.-.-.>.<.<<-.<<..<.>>.>.<<.<<<.<.<+.+.-.-.<.-.--.>-.>.>.>.<.>+.>.>>.+.++.<.>+.++.>-.+.>>.>>.>+.+..<.<.<.>>>.>.<<.>.>.>.<<+.<<-.<.>-..>-.<.<.<+.<.>.<-.-.+.<.--..>-.+.-.<.<+.>>>.>.>>+...>.<<.>-.>.--.>.<.++.-...<<+..-.>+.>.<--.<.<.>..>++.>.<--.<..>.++...<.<.>.<.+..>.<+.<.+.>.--.>+.<.>-.<<-.<.<.>>.>.+.-.>>.<..>..<<<.<.>-.>.>.>.>>>-.>++.++.<.<.+.--.+.+.<<.<+.>-.<.>>.--.+.>-.>.>.>>+.<.<-.<.<.<.<.<.--.<.>>..+.>.<.-.<<<.>.<+++.<<+..>+.+.-.>.<.+.>>.>.>.<.-.<.>>.-.>.>.-.-.<.>++.+.<-.<+.<.<<.--.-.<-.>.>.>.<<.<.<++.<..<.<-.<<.<.<.>-.>>.++.-.+.<+.++.-.>>.>.--..>.>-.-.-.>>.>>..--.>.>.<..<+.>+.---.>>-.<.<.<.<.<.<-.<+.>+.<.<-.<.++.<.+.<.<<<+.>.<.-.<++.>.+.<.>.>.++.>+.-..--.>..<+.<-.>+.<+.>>.-.>.>..>-.>.>..--.<<<--..>.>.<<.--.>+.>.++.>.+..++.++.-.-.<.>+.>.>.>+.+.<.<++.<.>+.-..<.<.<<.>--.<-.<.<.<-.>.+...--.>>.>.+++..<..>>>.>.>+.>>-.>.>-.<.<.<..<-.++.<<<..<.<.<.--.<<.--.+.-.<.>.>.+.>+.+.>.>>-.>>.<.>+.>.<.<-.<.<.<+.<<.--.<<.-.<.<+.>>-.<.++.+.>>.>.>.>...>>-.<.>+...<-.-.<.<.>-.+.<.<<<.+.>+.+.<.<.---.+.<.+.-.-.<.+.<.<<.+.>.<-.<+..<.<--.>>+.>.>+.>>+.<+.<.<-.+.++.<.>.<.<<<..>+.>.-.<+.-.<+.<--..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.<<-.>.--.<..>+.>.-.++.>-.<.-.>.-.<.<.>+..+.-.>.<<-.>+.>++.<.<<..-.-.--.<+.>-.>.<..<-.<.<+.<.>>..>+.>>.<-.<<+.<.>.>+..>>.+.>.<+.<-.<-.<.<.>-.>.<.<+.<<..<-.<.>+.>..>+.<--..++.--.<+.<..>.<-..<<-..<.>>.-.>.+.>.>>---.>.-..+.<.>.>..-.>.>.<<<.>-.++++.-.<.<--.<<.>..+++.>..<.<..>-.++.<--.>.<.++.>>.>>.>.>.<+.>>.>.<+.<.+.-..<<.<.>-.>.<+.<-.-.<-.<.>..<-.>+.>+.>+.--.>.>.>.+.--.-.<<+.<.<.+.--.>--.<.+.>.>.>.>>.--.<.-.>.+.<.<<<<-.>.<-.>+.<.++..<.<.>.<.<-.>.<++.-.>++..>+.<.+.>-..>-.>.-..>>.>>-.<.++.++.+.<.<.<-.+..<..<-..++..<.<+.<-.<..+.<+.<.>."
+	/*
+	AnalyzeInstructions(
+		"-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]",
+		"-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.--.>++.>.-.>.>>.>+.<<.<<+.<.--.>.-..+.>.<.<++.>.>..>.<<.<.-.<<.<<.+.>>.>+.>.-.-.>.<.<<-.<<..<.>>.>.<<.<<<.<.<+.+.-.-.<.-.--.>-.>.>.>.<.>+.>.>>.+.++.<.>+.++.>-.+.>>.>>.>+.+..<.<.<.>>>.>.<<.>.>.>.<<+.<<-.<.>-..>-.<.<.<+.<.>.<-.-.+.<.--..>-.+.-.<.<+.>>>.>.>>+...>.<<.>-.>.--.>.<.++.-...<<+..-.>+.>.<--.<.<.>..>++.>.<--.<..>.++...<.<.>.<.+..>.<+.<.+.>.--.>+.<.>-.<<-.<.<.>>.>.+.-.>>.<..>..<<<.<.>-.>.>.>.>>>-.>++.++.<.<.+.--.+.+.<<.<+.>-.<.>>.--.+.>-.>.>.>>+.<.<-.<.<.<.<.<.--.<.>>..+.>.<.-.<<<.>.<+++.<<+..>+.+.-.>.<.+.>>.>.>.<.-.<.>>.-.>.>.-.-.<.>++.+.<-.<+.<.<<.--.-.<-.>.>.>.<<.<.<++.<..<.<-.<<.<.<.>-.>>.++.-.+.<+.++.-.>>.>.--..>.>-.-.-.>>.>>..--.>.>.<..<+.>+.---.>>-.<.<.<.<.<.<-.<+.>+.<.<-.<.++.<.+.<.<<<+.>.<.-.<++.>.+.<.>.>.++.>+.-..--.>..<+.<-.>+.<+.>>.-.>.>..>-.>.>..--.<<<--..>.>.<<.--.>+.>.++.>.+..++.++.-.-.<.>+.>.>.>+.+.<.<++.<.>+.-..<.<.<<.>--.<-.<.<.<-.>.+...--.>>.>.+++..<..>>>.>.>+.>>-.>.>-.<.<.<..<-.++.<<<..<.<.<.--.<<.--.+.-.<.>.>.+.>+.+.>.>>-.>>.<.>+.>.<.<-.<.<.<+.<<.--.<<.-.<.<+.>>-.<.++.+.>>.>.>.>...>>-.<.>+...<-.-.<.<.>-.+.<.<<<.+.>+.+.<.<.---.+.<.+.-.-.<.+.<.<<.+.>.<-.<+..<.<--.>>+.>.>+.>>+.<+.<.<-.+.++.<.>.<.<<<..>+.>.-.<+.-.<+.<--..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.<<-.>.--.<..>+.>.-.++.>-.<.-.>.-.<.<.>+..+.-.>.<<-.>+.>++.<.<<..-.-.--.<+.>-.>.<..<-.<.<+.<.>>..>+.>>.<-.<<+.<.>.>+..>>.+.>.<+.<-.<-.<.<.>-.>.<.<+.<<..<-.<.>+.>..>+.<--..++.--.<+.<..>.<-..<<-..<.>>.-.>.+.>.>>---.>.-..+.<.>.>..-.>.>.<<<.>-.++++.-.<.<--.<<.>..+++.>..<.<..>-.++.<--.>.<.++.>>.>>.>.>.<+.>>.>.<+.<.+.-..<<.<.>-.>.<+.<-.-.<-.<.>..<-.>+.>+.>+.--.>.>.>.+.--.-.<<+.<.<.+.--.>--.<.+.>.>.>.>>.--.<.-.>.+.<.<<<<-.>.<-.>+.<.++..<.<.>.<.<-.>.<++.-.>++..>+.<.+.>-..>-.>.-..>>.>>-.<.++.++.+.<.<.<-.+..<..<-..++..<.<+.<-.<..+.<+.<.>.[<]>"
+	);//*/
 	
 	/*
+	int steps_per_run = 0;
 	std::vector<std::string> bf_chunks;
-	bf_chunks.push_back(BF_LOTS_OF_1s);
+	std::string s = "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>][<]>[<]><<<<<-.>>---------.<<<<-.>------.<.<.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.<+.>>++.>.-.>.<--.>-.>.<-.<<.--.<.<+..+.++.>.>++.<.<..<.>>.>.-.>.>.+.<.++.<.-.-.<.>.>---.>..>>+.<.+++.<.-.>>.<.+.<<.-.>.-.>.>>.<.++.>+.<.>+.>>.<-.+.<.<+.<.<.<.+.<.<<.<+.+..>.>.>.>-.";
+	bf_chunks.push_back(s);
 
-	BFVM b("", 500);
+	BFVM b("", 500, BFVM::OutputStyle::StdOutAndInteralBuffer);
 	for (int i = 0; i <bf_chunks.size(); i++)
 	{
 		printf("%s\n", bf_chunks[i].c_str());
 		b.GetMutableInstructions() += bf_chunks[i];
-		b.Run();
-		b.DebugTape(0, 300);
+
+		bool still_running = false;
+		do
+		{
+			still_running = b.Run(steps_per_run);
+			b.DebugTape(20);
+		} while (still_running);
 	}
 	printf("%s\n", b.GetInstructions().c_str());
-	*/
+	//*/
 }
