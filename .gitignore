@@ -3,8 +3,11 @@
 Debug/
 Release/
 x64/
+*.sln
+*.vcxproj
 *.vcxproj.user
 *.vcxproj.filters
+App.config
 
 # Prerequisites
 *.d
