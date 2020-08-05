@@ -472,20 +472,9 @@ public:
 
 	static void TestVM()
 	{
-		//BFVM vm(FirstPassSqrt2().c_str());
-		//vm.Run();
 		BFVM vm("[+++.]>>>-[>+<-----]>+.", 16, OutputStyle::InternalBuffer);	// Write an ascii '4'
 		vm.Run();
 		assert(vm.GetOutput().back() == '4');
-	}
-
-	static void TestClass()
-	{
-		BFVM vm_1("[+++.]>>>-[>+<-----]>+.", kDefaultTapeSize, OutputStyle::InternalBuffer);	// Write an ascii '4'
-		BFVM vm_2(vm_1);
-		vm_1.Run();
-		const std::string& out = vm_2.GetOutput();
-		assert(out == "4");
 	}
 
 private:
@@ -554,7 +543,6 @@ protected:
 
 VmPool<BFVM> VM_POOL;
 
-
 class AStarNode
 {
 public:
@@ -612,6 +600,77 @@ public:
 	static const float kEstimatedInstructionsPerOutput;
 	float _score = 0.0f;
 	BFVM* _vm = nullptr;
+};
+
+class BF_Helper
+{
+public:
+	static AStarNode GenerateTestNodeWithInstructions(const AStarNode& previous, const std::string& instructions)
+	{
+		AStarNode out_new_node = BF_Helper::CloneNode(previous._vm);
+		BFVM& vm_ref = *out_new_node._vm;
+
+		vm_ref.GetMutableInstructions() += instructions;
+
+		vm_ref.Run();
+		return out_new_node;
+	}
+
+	static AStarNode GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos)
+	{
+		// TODO: Verify we're not going to go off the tape (avoid BF code that wraps around)
+		assert((int)previous._vm->GetTapePointer() >= -delta_pos);
+
+		AStarNode out_new_node;
+
+		// early-out if data at target index is too far away to consider
+		uint8 data = previous._vm->GetData(delta_pos);
+		if (((next_output > data) && (next_output - data > 10)) ||
+			((next_output < data) && (data - next_output > 10)))
+		{
+			// data is too far away to consider this node
+			assert(out_new_node._vm == nullptr);
+			return out_new_node;
+		}
+
+		out_new_node = BF_Helper::CloneNode(previous._vm);
+		BFVM& vm_ref = *out_new_node._vm;
+
+		// Add instructions to move the data pointer based on 'delta_pos'
+		std::string& instructions_ref = vm_ref.GetMutableInstructions();
+		int increment = (delta_pos > 0) ? 1 : -1;
+		for (int i = 0; i != delta_pos; i += increment)
+		{
+			instructions_ref += (delta_pos > 0) ? '>' : '<';
+		}
+
+		// Add instructions to modify data at this position in the tape to match 'next_output'
+		// TODO: Support wraparound?
+		increment = (next_output > data) ? 1 : -1;
+		for (int i = data; i != next_output; i += increment)
+		{
+			instructions_ref += (next_output > data) ? '+' : '-';
+		}
+
+		// Add instruction to print the character
+		instructions_ref += '.';
+
+		// Execute instructions that were just generated
+		vm_ref.Run();
+
+		assert(vm_ref.GetOutput().back() == next_output);
+
+		return out_new_node;
+	}
+
+	// TODO: The existance of this function makes me sad :(
+	static AStarNode CloneNode(const AStarNode& other)
+	{
+		BFVM* new_vm = VM_POOL.CloneVM(*other._vm);
+		AStarNode new_node(new_vm);
+		new_node._score = other._score;
+		return new_node;
+	}
 };
 
 
@@ -757,15 +816,15 @@ public:
 		bool use_big_shift_nodes = false;
 		if (use_big_shift_nodes)
 		{
-			TryAddNodeToQueue(GenerateTestNodeWithInstructions(top, "[<]>"));
-			TryAddNodeToQueue(GenerateTestNodeWithInstructions(top, "[>]<"));
+			TryAddNodeToQueue(BF_Helper::GenerateTestNodeWithInstructions(top, "[<]>"));
+			TryAddNodeToQueue(BF_Helper::GenerateTestNodeWithInstructions(top, "[>]<"));
 		}
 
 		for (int i = -5; i <= 5; i++)
 		{
 			if ((int)top._vm->GetTapePointer() >= -i)
 			{
-				AStarNode next_node = GenerateTestNode(top, next_output_char, i);
+				AStarNode next_node = BF_Helper::GenerateTestNode(top, next_output_char, i);
 				TryAddNodeToQueue(next_node);
 			}
 		}
@@ -972,73 +1031,6 @@ protected:
 		}
 	}
 	
-	AStarNode GenerateTestNodeWithInstructions(const AStarNode& previous, const std::string& instructions)
-	{
-		AStarNode out_new_node = CloneNode(previous._vm);
-		BFVM& vm_ref = *out_new_node._vm;
-		
-		vm_ref.GetMutableInstructions() += instructions;
-		
-		vm_ref.Run();
-		return out_new_node;
-	}
-
-	AStarNode GenerateTestNode(const AStarNode& previous, char next_output, int delta_pos)
-	{
-		// TODO: Verify we're not going to go off the tape (avoid BF code that wraps around)
-		assert((int)previous._vm->GetTapePointer() >= -delta_pos);
-		
-		AStarNode out_new_node;
-
-		// early-out if data at target index is too far away to consider
-		uint8 data = previous._vm->GetData(delta_pos);
-		if (((next_output > data) && (next_output - data > 10)) ||
-			((next_output < data) && (data - next_output > 10)))
-		{
-			// data is too far away to consider this node
-			assert(out_new_node._vm == nullptr);
-			return out_new_node;
-		}
-
-		out_new_node = CloneNode(previous._vm);
-		BFVM& vm_ref = *out_new_node._vm;
-
-		// Add instructions to move the data pointer based on 'delta_pos'
-		std::string& instructions_ref = vm_ref.GetMutableInstructions();
-		int increment = (delta_pos > 0) ? 1 : -1;
-		for (int i = 0; i != delta_pos; i += increment)
-		{
-			instructions_ref += (delta_pos > 0) ? '>' : '<';
-		}
-
-		// Add instructions to modify data at this position in the tape to match 'next_output'
-		// TODO: Support wraparound?
-		increment = (next_output > data) ? 1 : -1;
-		for (int i = data; i != next_output; i += increment)
-		{
-			instructions_ref += (next_output > data) ? '+' : '-';
-		}
-
-		// Add instruction to print the character
-		instructions_ref += '.';
-
-		// Execute instructions that were just generated
-		vm_ref.Run();
-
-		assert(vm_ref.GetOutput().back() == next_output);
-
-		return out_new_node;
-	}
-
-	// TODO: The existance of this function makes me sad :(
-	AStarNode CloneNode(const AStarNode& other)
-	{
-		BFVM* new_vm = VM_POOL.CloneVM(*other._vm);
-		AStarNode new_node(new_vm);
-		new_node._score = other._score;
-		return new_node;
-	}
-
 	// Empties out the queue and frees up all associated VMs
 	void EmptyQueue()
 	{
@@ -1319,6 +1311,104 @@ void TestAStar()
 		best_starting_pattern);
 }
 
+class BruteForce
+{
+public:
+	BruteForce() {}
+
+	void Run(int search_depth, float cutoff_ipo)
+	{
+		int initial_instruction_count = (int)_initial_state->GetInstructions().size();
+		_cutoff_instruction_count = initial_instruction_count + (int)ceilf(search_depth * cutoff_ipo);
+		ProcessNode(*_initial_state, search_depth);
+	}
+
+	void ProcessNode(BFVM& node, int depth)
+	{
+		if (depth == 0)
+		{
+			if (node.GetInstructions().size() <= _best_solution.size() || _best_solution.empty())
+			{
+				printf("New Best - %d - %s\n", (int)node.GetInstructions().size(), node.GetInstructions().c_str());
+				_best_solution = node.GetInstructions();
+			}
+			return;
+		}
+
+		char next_output_char = _target_output[node.GetOutput().size()];
+
+		for (int i = -5; i <= 5; i++)
+		{
+			if ((int)node.GetTapePointer() >= -i)
+			{
+				AStarNode next_node = BF_Helper::GenerateTestNode(&node, next_output_char, i);
+				if (next_node._vm != nullptr)
+				{
+					// Skip nodes that have already exceeded the instruction count cutoff
+					if (next_node._vm->GetInstructions().size() <= _cutoff_instruction_count)
+					{
+						ProcessNode(*next_node._vm, depth - 1);
+					}
+					VM_POOL.FreeVM(next_node._vm);
+				}
+			}
+		}
+	}
+
+	bool IsFinished() const
+	{
+		return true;
+	}
+
+	void SetTargetOutput(std::string target_output)
+	{
+		_target_output = target_output;
+	}
+
+	void SetInitialState(const BFVM& vm)
+	{
+		// Clone the passed in VM
+		if (_initial_state != nullptr)
+		{
+			VM_POOL.FreeVM(_initial_state);
+		}
+		_initial_state = VM_POOL.CloneVM(vm);
+	}
+
+protected:
+	std::string _target_output;
+	BFVM* _initial_state = nullptr;
+
+	int _cutoff_instruction_count = 0;
+	std::string _best_solution;
+};
+
+void TestBruteForce()
+{
+	int search_depth = 15;
+	float cutoff_ipo = 3.0f;
+	int starting_pattern = 257;
+	int vm_tape_size = 400;
+	std::string target_output_string = SQRT_2;
+	int decimal_places_to_compute = 1000;
+
+	std::string starting_pattern_code = BuildBFPattern(starting_pattern);
+
+	// Add the most common starting pattern
+	starting_pattern_code += "<<<-.---.<<-.<-.>.";
+
+	BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
+	vm.Run();
+
+	std::string target_output = target_output_string.substr(0, 2 + (size_t)decimal_places_to_compute);
+
+	BruteForce b;
+	b.SetTargetOutput(target_output);
+	b.SetInitialState(vm);
+
+	b.Run(search_depth, cutoff_ipo);
+}
+
 int main(int argc, char *argv[])
 {
 	int seed = (int)time(nullptr);
@@ -1326,9 +1416,8 @@ int main(int argc, char *argv[])
 	srand(seed);
 	
 	BFVM::TestVM();
-	//BFVM::TestClass();
-	TestAStar();
-	//FirstPassSqrt2();
+	//TestAStar();
+	TestBruteForce();
 
 	// First 773 characters of 2454 run
 	// "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.--.>++.>.-.>.>>.>+.<<.<<+.<.--.>.-..+.>.<.<++.>.>..>.<<.<.-.<<.<<.+.>>.>+.>.-.-.>.<.<<-.<<..<.>>.>.<<.<<<.<.<+.+.-.-.<.-.--.>-.>.>.>.<.>+.>.>>.+.++.<.>+.++.>-.+.>>.>>.>+.+..<.<.<.>>>.>.<<.>.>.>.<<+.<<-.<.>-..>-.<.<.<+.<.>.<-.-.+.<.--..>-.+.-.<.<+.>>>.>.>>+...>.<<.>-.>.--.>.<.++.-...<<+..-.>+.>.<--.<.<.>..>++.>.<--.<..>.++...<.<.>.<.+..>.<+.<.+.>.--.>+.<.>-.<<-.<.<.>>.>.+.-.>>.<..>..<<<.<.>-.>.>.>.>>>-.>++.++.<.<.+.--.+.+.<<.<+.>-.<.>>.--.+.>-.>.>.>>+.<.<-.<.<.<.<.<.--.<.>>..+.>.<.-.<<<.>.<+++.<<+..>+.+.-.>.<.+.>>.>.>.<.-.<.>>.-.>.>.-.-.<.>++.+.<-.<+.<.<<.--.-.<-.>.>.>.<<.<.<++.<..<.<-.<<.<.<.>-.>>.++.-.+.<+.++.-.>>.>.--..>.>-.-.-.>>.>>..--.>.>.<..<+.>+.---.>>-.<.<.<.<.<.<-.<+.>+.<.<-.<.++.<.+.<.<<<+.>.<.-.<++.>.+.<.>.>.++.>+.-..--.>..<+.<-.>+.<+.>>.-.>.>..>-.>.>..--.<<<--..>.>.<<.--.>+.>.++.>.+..++.++.-.-.<.>+.>.>.>+.+.<.<++.<.>+.-..<.<.<<.>--.<-.<.<.<-.>.+...--.>>.>.+++..<..>>>.>.>+.>>-.>.>-.<.<.<..<-.++.<<<..<.<.<.--.<<.--.+.-.<.>.>.+.>+.+.>.>>-.>>.<.>+.>.<.<-.<.<.<+.<<.--.<<.-.<.<+.>>-.<.++.+.>>.>.>.>...>>-.<.>+...<-.-.<.<.>-.+.<.<<<.+.>+.+.<.<.---.+.<.+.-.-.<.+.<.<<.+.>.<-.<+..<.<--.>>+.>.>+.>>+.<+.<.<-.+.++.<.>.<.<<<..>+.>.-.<+.-.<+.<--..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.<<-.>.--.<..>+.>.-.++.>-.<.-.>.-.<.<.>+..+.-.>.<<-.>+.>++.<.<<..-.-.--.<+.>-.>.<..<-.<.<+.<.>>..>+.>>.<-.<<+.<.>.>+..>>.+.>.<+.<-.<-.<.<.>-.>.<.<+.<<..<-.<.>+.>..>+.<--..++.--.<+.<..>.<-..<<-..<.>>.-.>.+.>.>>---.>.-..+.<.>.>..-.>.>.<<<.>-.++++.-.<.<--.<<.>..+++.>..<.<..>-.++.<--.>.<.++.>>.>>.>.>.<+.>>.>.<+.<.+.-..<<.<.>-.>.<+.<-.-.<-.<.>..<-.>+.>+.>+.--.>.>.>.+.--.-.<<+.<.<.+.--.>--.<.+.>.>.>.>>.--.<.-.>.+.<.<<<<-.>.<-.>+.<.++..<.<.>.<.<-.>.<++.-.>++..>+.<.+.>-..>-.>.-..>>.>>-.<.++.++.+.<.<.<-.+..<..<-..++..<.<+.<-.<..+.<+.<.>."
