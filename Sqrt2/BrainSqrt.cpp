@@ -1462,22 +1462,18 @@ protected:
 
 void TestBruteForce()
 {
-	int search_depth = 20;
-	int cutoff_instruction_count = (int)ceil(search_depth * 2.6f);
-	int starting_pattern = 3;
+	int search_depth = 18;
+	int starting_pattern = 257;
 	int vm_tape_size = 400;
 	std::string target_output_string = SQRT_2;
-	int decimal_places_to_compute = 1000;
 
-	std::string starting_pattern_code = BF_LOTS_OF_3s;// BuildBFPattern(starting_pattern);
+	std::string starting_pattern_code = BuildBFPattern(starting_pattern);
 
 	BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
 	vm.Run();
 
-	std::string target_output = target_output_string.substr(0, 2 + (size_t)decimal_places_to_compute);
-
 	BruteForce b;
-	b.SetTargetOutput(target_output);
+	b.SetTargetOutput(target_output_string);
 	b.SetInitialState(vm);
 
 	auto start = std::chrono::high_resolution_clock::now();
@@ -1485,8 +1481,6 @@ void TestBruteForce()
 	auto end = std::chrono::high_resolution_clock::now();
 	float duration_seconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000000.0f;
 	printf("Brute Force Run Time - %0.4f\n", duration_seconds);
-
-
 }
 
 int main(int argc, char *argv[])
