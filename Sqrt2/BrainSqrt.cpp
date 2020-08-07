@@ -709,6 +709,7 @@ struct TestParams
 	int vm_tape_size = kDefaultTapeSize;
 	std::string target_output_string;
 	EndCondition end_condition = EndCondition::FirstSolutionFound;
+	int64 max_nodes_to_process = 0;
 };
 
 
@@ -751,7 +752,7 @@ public:
 			return GetBestResult() != nullptr;
 		case EndCondition::SearchExhausted:
 			return _queue.empty() ||
-				((_max_num_nodes > 0) && (_num_nodes_processed > _max_num_nodes));
+				((_params.max_nodes_to_process > 0) && (_num_nodes_processed >= _params.max_nodes_to_process));
 		}
 		
 		assert(false);	// Unhandled end condition!
@@ -766,11 +767,6 @@ public:
 	int64 GetNumNodesProcessed() const
 	{
 		return _num_nodes_processed;
-	}
-
-	void SetMaxNumNodesToProcess(int64 max_num_nodes)
-	{
-		_max_num_nodes = max_num_nodes;
 	}
 
 	// Sets parameters for queue trimming.
@@ -1174,7 +1170,6 @@ protected:
 	std::unordered_map<int64, float> _hash_to_best_score;
 	AStarNode _best_solution;
 	int64 _num_nodes_processed = 0;
-	int64 _max_num_nodes = 0;
 	int _queue_trim_size_threshold = 0;
 	float _queue_trim_amount = 0.0f;
 	bool _check_hash = true;
@@ -1352,7 +1347,7 @@ public:
 		auto start = std::chrono::high_resolution_clock::now();
 		{
 			_cutoff_instruction_count = CalculateInitialInstructionCutoffCount(*_initial_state, params.search_depth);
-			printf("Cutoff Instruction Count = %d\n", _cutoff_instruction_count);
+			//printf("Cutoff Instruction Count = %d\n", _cutoff_instruction_count);
 			_num_nodes_processed = 0;
 			ProcessNode(*_initial_state, params.search_depth);
 		}
@@ -1467,7 +1462,7 @@ protected:
 		case EndCondition::FirstSolutionFound:
 			return !_best_solutions.empty();
 		case EndCondition::SearchExhausted:
-			return false;
+			return (_params.max_nodes_to_process > 0) && (_num_nodes_processed >= _params.max_nodes_to_process);
 		}
 		assert(false);	// Unhandled end condition!
 		return true;
@@ -1478,16 +1473,15 @@ protected:
 		// Copy all test Params from the BruteForce search except always use the first solution
 		TestParams astar_params(_params);
 		astar_params.end_condition = EndCondition::FirstSolutionFound;
+		astar_params.max_nodes_to_process = 0;	// no limit
 
 		const float ipo = 2.6f;
 		int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
 		float queue_trim_amount = 0.5f;
-		const int kMaxNodesToProcess = 0; // 50 * 1000;	// 0 = no limit
 
 		AStar a;
 		a.SetInstructionsPerOutputSettings(ipo);
 		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
-		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
 
 		a.Run(astar_params);
 
@@ -1521,23 +1515,22 @@ void TestAStar()
 	//{ 257, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
 
 	TestParams t;
-	t.search_depth = 50;	// 1002 = 1000 decimal places + "1."
+	t.search_depth = 16;	// 1002 = 1000 decimal places + "1."
 	t.starting_instructions = BuildBFPattern(257);
 	t.vm_tape_size = 400;
 	t.target_output_string = SQRT_2;
 	t.end_condition = EndCondition::FirstSolutionFound;
+	t.max_nodes_to_process = 0;// 50 * 1000;	// 0 = no limit
 
 	float ipo = 2.6f;		// Instructions per output
 	float ipo_increment_per_trim = 0.f;	// 0.0001f;
 	float random_score = 0.0f; // 0.001f;
 	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
 	float queue_trim_amount = 0.5f;
-	const int kMaxNodesToProcess = 0;// 50 * 1000;	// 0 = no limit
 
 	AStar a;
 	a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim, random_score);
 	a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
-	a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
 
 	a.Run(t);
 
@@ -1552,6 +1545,7 @@ void TestBruteForce()
 	t.vm_tape_size = 400;
 	t.target_output_string = SQRT_2;
 	t.end_condition = EndCondition::SearchExhausted;
+	t.max_nodes_to_process = 0;	// 0 = no limit
 
 	BruteForce b;
 	b.Run(t);
