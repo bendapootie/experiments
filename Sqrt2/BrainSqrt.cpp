@@ -476,6 +476,28 @@ public:
 		BFVM vm("[+++.]>>>-[>+<-----]>+.", 16, OutputStyle::InternalBuffer);	// Write an ascii '4'
 		vm.Run();
 		assert(vm.GetOutput().back() == '4');
+
+		/*
+		int steps_per_run = 0;
+		std::vector<std::string> bf_chunks;
+		std::string s = "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>][<]>[<]><<<<<-.>>---------.<<<<-.>------.<.<.-.++.<<.+.<.+.<.>.---.";
+		bf_chunks.push_back(s);
+
+		BFVM b("", 500, BFVM::OutputStyle::StdOutAndInteralBuffer);
+		for (int i = 0; i <bf_chunks.size(); i++)
+		{
+			printf("%s\n", bf_chunks[i].c_str());
+			b.GetMutableInstructions() += bf_chunks[i];
+
+			bool still_running = false;
+			do
+			{
+				still_running = b.Run(steps_per_run);
+				b.DebugTape(20);
+			} while (still_running);
+		}
+		printf("%s\n", b.GetInstructions().c_str());
+		//*/
 	}
 
 private:
@@ -565,7 +587,7 @@ public:
 		return _score < rhs._score;
 	}
 
-	void ComputeScore(const std::string& target_output, const float target_instructions_per_output, const float random_score)
+	void ComputeScore(int target_output_size, const float target_instructions_per_output, const float random_score)
 	{
 		assert(_vm != nullptr);
 		
@@ -575,7 +597,7 @@ public:
 			num_setup_instructions,
 			(int)_vm->GetInstructions().size(),
 			(int)_vm->GetOutput().size(),
-			(int)target_output.size(),
+			target_output_size,
 			target_instructions_per_output,
 			random_score
 		);
@@ -674,6 +696,21 @@ public:
 	}
 };
 
+enum class EndCondition
+{
+	FirstSolutionFound,
+	SearchExhausted
+};
+
+struct TestParams
+{
+	int search_depth = 0;
+	std::string starting_instructions;
+	int vm_tape_size = kDefaultTapeSize;
+	std::string target_output_string;
+	EndCondition end_condition = EndCondition::FirstSolutionFound;
+};
+
 
 class AStar
 {
@@ -708,8 +745,17 @@ public:
 
 	bool IsFinished() const
 	{
-		return _queue.empty() ||
-			((_max_num_nodes > 0) && (_num_nodes_processed > _max_num_nodes));
+		switch (_params.end_condition)
+		{
+		case EndCondition::FirstSolutionFound:
+			return GetBestResult() != nullptr;
+		case EndCondition::SearchExhausted:
+			return _queue.empty() ||
+				((_max_num_nodes > 0) && (_num_nodes_processed > _max_num_nodes));
+		}
+		
+		assert(false);	// Unhandled end condition!
+		return true;
 	}
 
 	bool Succeeded() const
@@ -738,11 +784,6 @@ public:
 		_queue_trim_amount = queue_trim_amount;
 	}
 
-	void SetTargetOutput(std::string target_output)
-	{
-		_target_output = target_output;
-	}
-	
 	void SetInstructionsPerOutputSettings(const float base_ipo, const float ipo_increment_per_trim = 0.f, const float random_score =0.f)
 	{
 		_target_instructions_per_output = base_ipo;
@@ -751,13 +792,33 @@ public:
 		_random_score = random_score;
 	}
 
-	void SetInitialState(const BFVM& vm)
+	void Run(const TestParams& params)
 	{
-		// Clone the passed in VM and push it on the A* search queue
-		BFVM* new_vm = VM_POOL.CloneVM(vm);
-		AStarNode new_node(new_vm);
-		bool added = TryAddNodeToQueue(new_node);
-		assert(added);
+		// Save off the starting params
+		_params = params;
+		// Todo: Put validation of _params somewhere more central. In TestParams struct?
+		assert(_params.search_depth <= _params.target_output_string.size());
+
+		// Initialize the 'seed' vm
+		_seed_vm.Initialize(_params.starting_instructions.c_str(), _params.vm_tape_size, BFVM::OutputStyle::InternalBuffer);
+		_seed_vm.Run();
+
+		// Cache off target output size. This tells us when we're done searching
+		_target_output_size = (int)_seed_vm.GetOutput().size() + _params.search_depth;
+
+		SetInitialState(_seed_vm);
+
+		// Start timer
+		auto start = std::chrono::high_resolution_clock::now();
+		{
+			while (!IsFinished())
+			{
+				ProcessNextNode();
+			}
+		}
+		// End timer
+		auto end = std::chrono::high_resolution_clock::now();
+		_run_time_seconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000000.0f;
 	}
 
 	// Pop the Node with the lowest score and add all its potential next steps
@@ -776,7 +837,7 @@ public:
 		}
 
 		// Check if top is a solution
-		if (top_output_size == _target_output.size())
+		if (top_output_size == _target_output_size)
 		{
 			// Found solution! Compare it with previous best
 			if (_best_solution._vm == nullptr)
@@ -809,9 +870,10 @@ public:
 		char next_output_char;
 		{
 			const std::string& top_output = top._vm->GetOutput();
-			assert(top_output.size() < _target_output.size());
+			// Make sure we're not searching beyond the seed output size + search depth
+			assert(top_output.size() < _target_output_size);
 
-			next_output_char = _target_output[top_output.size()];
+			next_output_char = _params.target_output_string[top_output.size()];
 		}
 
 		bool use_big_shift_nodes = false;
@@ -843,7 +905,35 @@ public:
 		}
 	}
 
+	void PrintResults() const
+	{
+		// Pattern, Steps, Score, Output Size, Num Instructions
+		printf("AStar Run Time - %0.2fs  (%lld nodes)\n", _run_time_seconds, GetNumNodesProcessed());
+
+		if (Succeeded())
+		{
+			const AStarNode* solution = GetBestResult();
+			const std::string& str = solution->_vm->GetInstructions();
+			printf("Best Solution - %d chars\n", (int)str.size());
+			printf("%s\n", str.c_str());
+		}
+		else
+		{
+			printf("No solution found!\n");
+		}
+		printf("\n");
+	}
+
 protected:
+	void SetInitialState(const BFVM& vm)
+	{
+		// Clone the passed in VM and push it on the A* search queue
+		BFVM* new_vm = VM_POOL.CloneVM(vm);
+		AStarNode new_node(new_vm);
+		bool added = TryAddNodeToQueue(new_node);
+		assert(added);
+	}
+
 	bool TryAddNodeToQueue(AStarNode node)
 	{
 		// don't use node if its vm is null'
@@ -863,7 +953,7 @@ protected:
 			}
 		}
 		
-		node.ComputeScore(_target_output, _current_instructions_per_output, _random_score);
+		node.ComputeScore(_target_output_size, _current_instructions_per_output, _random_score);
 
 		if (_check_hash == false)
 		{
@@ -1075,9 +1165,12 @@ protected:
 	}
 
 protected:
+	TestParams _params;
+	BFVM _seed_vm;
+	int _target_output_size = 0;
+
 	//std::priority_queue<AStarNode> _queue;
 	PriorityQueue<AStarNode> _queue;
-	std::string _target_output;
 	std::unordered_map<int64, float> _hash_to_best_score;
 	AStarNode _best_solution;
 	int64 _num_nodes_processed = 0;
@@ -1088,6 +1181,7 @@ protected:
 
 	std::map<int, std::string> _length_to_best_solution;
 	bool _print_all_bests_next_trim = false;
+	float _run_time_seconds = 0.f;
 
 	// Parameters to control if and how _target_instructions_per_output is adjusted over time
 	float _target_instructions_per_output = 0.0f;
@@ -1236,90 +1330,6 @@ void AnalyzeInstructions(std::string initial_state, std::string instructions)
 	}
 }
 
-void TestAStar()
-{
-	float ipo = 2.6f;		// Instructions per output
-	float ipo_increment_per_trim = 0.f;	// 0.0001f;
-	float random_score = 0.0f; // 0.001f;
-	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
-	float queue_trim_amount = 0.5f;
-	const int kMaxNodesToProcess = 50 * 1000;	// 0 = no limit
-	std::string target_output_string = SQRT_2;
-	int decimal_places_to_compute = 1000;
-	int vm_tape_size = 400;
-
-	std::vector<int> good_patterns = {257}; //{ 257, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
-
-	printf("Seconds,Pattern,Steps,Score,Output Size,Num Instructions\n");
-
-	int best_starting_pattern = 0;
-	std::string best_solution = "";
-	for (int starting_pattern : good_patterns)
-	{
-		std::string starting_pattern_code = BuildBFPattern(starting_pattern);
-
-		BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
-		vm.Run();
-		AStar a;
-		a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim, random_score);
-		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
-
-		std::string target_output = target_output_string.substr(0, 2 + (size_t)decimal_places_to_compute);
-		a.SetTargetOutput(target_output);
-		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
-
-		// Start timer
-		time_t start_time = time(nullptr);
-		a.SetInitialState(vm);
-		do
-		{
-			a.ProcessNextNode();
-		} while (!a.IsFinished());
-
-		// End timer
-		time_t end_time = time(nullptr);
-		int elapsed_seconds = (int)difftime(end_time, start_time);
-
-		const AStarNode* top = a.GetTopNode();
-		// Pattern, Steps, Score, Output Size, Num Instructions
-		printf("%d,%d,%d,%0.4f,%d,%d",
-			elapsed_seconds,
-			starting_pattern,
-			(int)a.GetNumNodesProcessed(),
-			top->_score,
-			(int)top->_vm->GetOutput().size(),
-			(int)top->_vm->GetInstructions().size()
-		);
-
-		if (a.Succeeded())
-		{
-			const AStarNode* solution = a.GetBestResult();
-			const std::string& str = solution->_vm->GetInstructions();
-
-			if (best_solution.size() == 0 || (str.size() < best_solution.size()))
-			{
-				best_solution = str;
-				best_starting_pattern = starting_pattern;
-				printf(",<-- NEW BEST!");
-			}
-		}
-		printf("\n");
-	}
-
-	printf("\n\nBest Solution...\n%s\n%d characters\nStarting Pattern - %d\n",
-		best_solution.c_str(),
-		int(best_solution.size()),
-		best_starting_pattern);
-}
-
-struct TestParams
-{
-	int search_depth = 0;
-	std::string starting_instructions;
-	int vm_tape_size = kDefaultTapeSize;
-	std::string target_output_string;
-};
-
 class BruteForce
 {
 public:
@@ -1327,11 +1337,15 @@ public:
 
 	void Run(const TestParams& params)
 	{
+		// Save off the starting params
+		_params = params;
+		// Todo: Put validation of _params somewhere more central. In TestParams struct?
+		assert(_params.search_depth <= _params.target_output_string.size());
+
 		// Create and seed a vm
 		BFVM vm(params.starting_instructions.c_str(), params.vm_tape_size, BFVM::OutputStyle::InternalBuffer);
 		vm.Run();
 
-		SetTargetOutput(params.target_output_string);
 		SetInitialState(vm);
 
 		// Start timer
@@ -1339,16 +1353,17 @@ public:
 		{
 			_cutoff_instruction_count = CalculateInitialInstructionCutoffCount(*_initial_state, params.search_depth);
 			printf("Cutoff Instruction Count = %d\n", _cutoff_instruction_count);
-			_nodes_processed = 0;
+			_num_nodes_processed = 0;
 			ProcessNode(*_initial_state, params.search_depth);
 		}
+		// End timer
 		auto end = std::chrono::high_resolution_clock::now();
 		_run_time_seconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000000.0f;
 	}
 
 	void ProcessNode(BFVM& node, int depth)
 	{
-		_nodes_processed++;
+		_num_nodes_processed++;
 		if (depth == 0)
 		{
 			const int node_instruction_size = (int)node.GetInstructions().size();
@@ -1375,10 +1390,14 @@ public:
 			return;
 		}
 
-		char next_output_char = _target_output[node.GetOutput().size()];
+		char next_output_char = _params.target_output_string[node.GetOutput().size()];
 
 		for (int index = 0; index <= 10; index++)
 		{
+			if (ShouldEarlyOut())
+			{
+				break;
+			}
 			const int i = ((index + 1) >> 1) * ((index & 1) ? 1 : -1);
 			if ((int)node.GetTapePointer() >= -i)
 			{
@@ -1414,7 +1433,7 @@ public:
 
 	void PrintResults() const
 	{
-		printf("Brute Force Run Time - %0.4f\n", GetRunTimeSeconds());
+		printf("Brute Force Run Time - %0.4f  (%lld nodes)\n", GetRunTimeSeconds(), _num_nodes_processed);
 		auto best_solutions = GetBestSolutions();
 		if (best_solutions.empty())
 		{
@@ -1431,11 +1450,6 @@ public:
 	}
 
 protected:
-	void SetTargetOutput(std::string target_output)
-	{
-		_target_output = target_output;
-	}
-
 	void SetInitialState(const BFVM& vm)
 	{
 		// Clone the passed in VM
@@ -1446,8 +1460,25 @@ protected:
 		_initial_state = VM_POOL.CloneVM(vm);
 	}
 
+	bool ShouldEarlyOut() const
+	{
+		switch (_params.end_condition)
+		{
+		case EndCondition::FirstSolutionFound:
+			return !_best_solutions.empty();
+		case EndCondition::SearchExhausted:
+			return false;
+		}
+		assert(false);	// Unhandled end condition!
+		return true;
+	}
+
 	int CalculateInitialInstructionCutoffCount(const BFVM& node, const int depth)
 	{
+		// Copy all test Params from the BruteForce search except always use the first solution
+		TestParams astar_params(_params);
+		astar_params.end_condition = EndCondition::FirstSolutionFound;
+
 		const float ipo = 2.6f;
 		int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
 		float queue_trim_amount = 0.5f;
@@ -1456,15 +1487,9 @@ protected:
 		AStar a;
 		a.SetInstructionsPerOutputSettings(ipo);
 		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
-		std::string target_output_trimmed = _target_output.substr(0, (int)node.GetOutput().size() + depth);
-		a.SetTargetOutput(target_output_trimmed);
 		a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
 
-		a.SetInitialState(node);
-		while (a.GetBestResult() == nullptr)
-		{
-			a.ProcessNextNode();
-		}
+		a.Run(astar_params);
 
 		int instruction_cutoff_count = 0;
 		if (const AStarNode* solution = a.GetBestResult())
@@ -1480,15 +1505,44 @@ protected:
 	}
 
 protected:
-	std::string _target_output;
+	TestParams _params;
 	BFVM* _initial_state = nullptr;
 
-	int64 _nodes_processed = 0;
+	int64 _num_nodes_processed = 0;
 	int _cutoff_instruction_count = 0;
 	std::vector<std::string> _best_solutions;
 	bool _debug_output_progress = false;
 	float _run_time_seconds = 0.0f;
 };
+
+void TestAStar()
+{
+	// Good looking starting patterns
+	//{ 257, 371, 713, 137, 319, 852, 471, 183, 528, 570, 441, 318, 409, 147, 742, 802, 681, 258, 481, 816, 462, 509, 580, 806, 804, 484, 168, 169, 414, 609, 294, 263, 27, 328, 714, 185, 361, 72, 406, 550, 780, 270, 480, 832, 814, 249, 841, 492, 770, 144, 807, 616, 419, 16, 390, 640, 28, 539, 831, 429, 17, 38, 81, 184};
+
+	TestParams t;
+	t.search_depth = 50;	// 1002 = 1000 decimal places + "1."
+	t.starting_instructions = BuildBFPattern(257);
+	t.vm_tape_size = 400;
+	t.target_output_string = SQRT_2;
+	t.end_condition = EndCondition::FirstSolutionFound;
+
+	float ipo = 2.6f;		// Instructions per output
+	float ipo_increment_per_trim = 0.f;	// 0.0001f;
+	float random_score = 0.0f; // 0.001f;
+	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
+	float queue_trim_amount = 0.5f;
+	const int kMaxNodesToProcess = 0;// 50 * 1000;	// 0 = no limit
+
+	AStar a;
+	a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim, random_score);
+	a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
+	a.SetMaxNumNodesToProcess(kMaxNodesToProcess);
+
+	a.Run(t);
+
+	a.PrintResults();
+}
 
 void TestBruteForce()
 {
@@ -1497,6 +1551,7 @@ void TestBruteForce()
 	t.starting_instructions = BuildBFPattern(257);
 	t.vm_tape_size = 400;
 	t.target_output_string = SQRT_2;
+	t.end_condition = EndCondition::SearchExhausted;
 
 	BruteForce b;
 	b.Run(t);
@@ -1511,36 +1566,13 @@ int main(int argc, char *argv[])
 	//srand(seed);
 	
 	BFVM::TestVM();
-	//TestAStar();
+	TestAStar();
 	TestBruteForce();
 
-	// First 773 characters of 2454 run
-	// "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.--.>++.>.-.>.>>.>+.<<.<<+.<.--.>.-..+.>.<.<++.>.>..>.<<.<.-.<<.<<.+.>>.>+.>.-.-.>.<.<<-.<<..<.>>.>.<<.<<<.<.<+.+.-.-.<.-.--.>-.>.>.>.<.>+.>.>>.+.++.<.>+.++.>-.+.>>.>>.>+.+..<.<.<.>>>.>.<<.>.>.>.<<+.<<-.<.>-..>-.<.<.<+.<.>.<-.-.+.<.--..>-.+.-.<.<+.>>>.>.>>+...>.<<.>-.>.--.>.<.++.-...<<+..-.>+.>.<--.<.<.>..>++.>.<--.<..>.++...<.<.>.<.+..>.<+.<.+.>.--.>+.<.>-.<<-.<.<.>>.>.+.-.>>.<..>..<<<.<.>-.>.>.>.>>>-.>++.++.<.<.+.--.+.+.<<.<+.>-.<.>>.--.+.>-.>.>.>>+.<.<-.<.<.<.<.<.--.<.>>..+.>.<.-.<<<.>.<+++.<<+..>+.+.-.>.<.+.>>.>.>.<.-.<.>>.-.>.>.-.-.<.>++.+.<-.<+.<.<<.--.-.<-.>.>.>.<<.<.<++.<..<.<-.<<.<.<.>-.>>.++.-.+.<+.++.-.>>.>.--..>.>-.-.-.>>.>>..--.>.>.<..<+.>+.---.>>-.<.<.<.<.<.<-.<+.>+.<.<-.<.++.<.+.<.<<<+.>.<.-.<++.>.+.<.>.>.++.>+.-..--.>..<+.<-.>+.<+.>>.-.>.>..>-.>.>..--.<<<--..>.>.<<.--.>+.>.++.>.+..++.++.-.-.<.>+.>.>.>+.+.<.<++.<.>+.-..<.<.<<.>--.<-.<.<.<-.>.+...--.>>.>.+++..<..>>>.>.>+.>>-.>.>-.<.<.<..<-.++.<<<..<.<.<.--.<<.--.+.-.<.>.>.+.>+.+.>.>>-.>>.<.>+.>.<.<-.<.<.<+.<<.--.<<.-.<.<+.>>-.<.++.+.>>.>.>.>...>>-.<.>+...<-.-.<.<.>-.+.<.<<<.+.>+.+.<.<.---.+.<.+.-.-.<.+.<.<<.+.>.<-.<+..<.<--.>>+.>.>+.>>+.<+.<.<-.+.++.<.>.<.<<<..>+.>.-.<+.-.<+.<--..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.<<-.>.--.<..>+.>.-.++.>-.<.-.>.-.<.<.>+..+.-.>.<<-.>+.>++.<.<<..-.-.--.<+.>-.>.<..<-.<.<+.<.>>..>+.>>.<-.<<+.<.>.>+..>>.+.>.<+.<-.<-.<.<.>-.>.<.<+.<<..<-.<.>+.>..>+.<--..++.--.<+.<..>.<-..<<-..<.>>.-.>.+.>.>>---.>.-..+.<.>.>..-.>.>.<<<.>-.++++.-.<.<--.<<.>..+++.>..<.<..>-.++.<--.>.<.++.>>.>>.>.>.<+.>>.>.<+.<.+.-..<<.<.>-.>.<+.<-.-.<-.<.>..<-.>+.>+.>+.--.>.>.>.+.--.-.<<+.<.<.+.--.>--.<.+.>.>.>.>>.--.<.-.>.+.<.<<<<-.>.<-.>+.<.++..<.<.>.<.<-.>.<++.-.>++..>+.<.+.>-..>-.>.-..>>.>>-.<.++.++.+.<.<.<-.+..<..<-..++..<.<+.<-.<..+.<+.<.>."
 	/*
-	AnalyzeInstructions(
+	//AnalyzeInstructions(
 		"-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]",
-		"-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.--.>++.>.-.>.>>.>+.<<.<<+.<.--.>.-..+.>.<.<++.>.>..>.<<.<.-.<<.<<.+.>>.>+.>.-.-.>.<.<<-.<<..<.>>.>.<<.<<<.<.<+.+.-.-.<.-.--.>-.>.>.>.<.>+.>.>>.+.++.<.>+.++.>-.+.>>.>>.>+.+..<.<.<.>>>.>.<<.>.>.>.<<+.<<-.<.>-..>-.<.<.<+.<.>.<-.-.+.<.--..>-.+.-.<.<+.>>>.>.>>+...>.<<.>-.>.--.>.<.++.-...<<+..-.>+.>.<--.<.<.>..>++.>.<--.<..>.++...<.<.>.<.+..>.<+.<.+.>.--.>+.<.>-.<<-.<.<.>>.>.+.-.>>.<..>..<<<.<.>-.>.>.>.>>>-.>++.++.<.<.+.--.+.+.<<.<+.>-.<.>>.--.+.>-.>.>.>>+.<.<-.<.<.<.<.<.--.<.>>..+.>.<.-.<<<.>.<+++.<<+..>+.+.-.>.<.+.>>.>.>.<.-.<.>>.-.>.>.-.-.<.>++.+.<-.<+.<.<<.--.-.<-.>.>.>.<<.<.<++.<..<.<-.<<.<.<.>-.>>.++.-.+.<+.++.-.>>.>.--..>.>-.-.-.>>.>>..--.>.>.<..<+.>+.---.>>-.<.<.<.<.<.<-.<+.>+.<.<-.<.++.<.+.<.<<<+.>.<.-.<++.>.+.<.>.>.++.>+.-..--.>..<+.<-.>+.<+.>>.-.>.>..>-.>.>..--.<<<--..>.>.<<.--.>+.>.++.>.+..++.++.-.-.<.>+.>.>.>+.+.<.<++.<.>+.-..<.<.<<.>--.<-.<.<.<-.>.+...--.>>.>.+++..<..>>>.>.>+.>>-.>.>-.<.<.<..<-.++.<<<..<.<.<.--.<<.--.+.-.<.>.>.+.>+.+.>.>>-.>>.<.>+.>.<.<-.<.<.<+.<<.--.<<.-.<.<+.>>-.<.++.+.>>.>.>.>...>>-.<.>+...<-.-.<.<.>-.+.<.<<<.+.>+.+.<.<.---.+.<.+.-.-.<.+.<.<<.+.>.<-.<+..<.<--.>>+.>.>+.>>+.<+.<.<-.+.++.<.>.<.<<<..>+.>.-.<+.-.<+.<--..+.<.--.>.>>+.<.<+.+.>.<.<.>.<.+.+++.>.>.>.>.<<-.>.--.<..>+.>.-.++.>-.<.-.>.-.<.<.>+..+.-.>.<<-.>+.>++.<.<<..-.-.--.<+.>-.>.<..<-.<.<+.<.>>..>+.>>.<-.<<+.<.>.>+..>>.+.>.<+.<-.<-.<.<.>-.>.<.<+.<<..<-.<.>+.>..>+.<--..++.--.<+.<..>.<-..<<-..<.>>.-.>.+.>.>>---.>.-..+.<.>.>..-.>.>.<<<.>-.++++.-.<.<--.<<.>..+++.>..<.<..>-.++.<--.>.<.++.>>.>>.>.>.<+.>>.>.<+.<.+.-..<<.<.>-.>.<+.<-.-.<-.<.>..<-.>+.>+.>+.--.>.>.>.+.--.-.<<+.<.<.+.--.>--.<.+.>.>.>.>>.--.<.-.>.+.<.<<<<-.>.<-.>+.<.++..<.<.>.<.<-.>.<++.-.>++..>+.<.+.>-..>-.>.-..>>.>>-.<.++.++.+.<.<.<-.+..<..<-..++..<.<+.<-.<..+.<+.<.>.[<]>"
-	);//*/
-	
-	/*
-	int steps_per_run = 0;
-	std::vector<std::string> bf_chunks;
-	std::string s = "-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>][<]>[<]><<<<<-.>>---------.<<<<-.>------.<.<.-.++.<<.+.<.+.<.>.---.<++.<.<--.>-.>-..>.+.>.>+..-.>-.>.<.--.<++.<.>.-.>.<-.+.<-.+.>+.<.+.<.<.-.<+.>>++.>.-.>.<--.>-.>.<-.<<.--.<.<+..+.++.>.>++.<.<..<.>>.>.-.>.>.+.<.++.<.-.-.<.>.>---.>..>>+.<.+++.<.-.>>.<.+.<<.-.>.-.>.>>.<.++.>+.<.>+.>>.<-.+.<.<+.<.<.<.+.<.<<.<+.+..>.>.>.>-.";
-	bf_chunks.push_back(s);
-
-	BFVM b("", 500, BFVM::OutputStyle::StdOutAndInteralBuffer);
-	for (int i = 0; i <bf_chunks.size(); i++)
-	{
-		printf("%s\n", bf_chunks[i].c_str());
-		b.GetMutableInstructions() += bf_chunks[i];
-
-		bool still_running = false;
-		do
-		{
-			still_running = b.Run(steps_per_run);
-			b.DebugTape(20);
-		} while (still_running);
-	}
-	printf("%s\n", b.GetInstructions().c_str());
+		"-[->>[>]>-[<+>-----]<[<]<]>>[->++>++++>]<<<-.---.<<-.<-.>.<+.-.++.<<.+.<.+.<.>.---.<++.<.<--."
+	);
 	//*/
 }
