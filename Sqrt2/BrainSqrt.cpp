@@ -1312,20 +1312,38 @@ void TestAStar()
 		best_starting_pattern);
 }
 
+struct TestParams
+{
+	int search_depth = 0;
+	std::string starting_instructions;
+	int vm_tape_size = kDefaultTapeSize;
+	std::string target_output_string;
+};
+
 class BruteForce
 {
 public:
 	BruteForce() {}
 
-	void Run(int search_depth)
+	void Run(const TestParams& params)
 	{
-		// Make sure any initial instructions have been run to prime the data and output
-		_initial_state->Run();
+		// Create and seed a vm
+		BFVM vm(params.starting_instructions.c_str(), params.vm_tape_size, BFVM::OutputStyle::InternalBuffer);
+		vm.Run();
 
-		_cutoff_instruction_count = CalculateInitialInstructionCutoffCount(*_initial_state, search_depth);
-		printf("Cutoff Instruction Count = %d\n", _cutoff_instruction_count);
-		_nodes_processed = 0;
-		ProcessNode(*_initial_state, search_depth);
+		SetTargetOutput(params.target_output_string);
+		SetInitialState(vm);
+
+		// Start timer
+		auto start = std::chrono::high_resolution_clock::now();
+		{
+			_cutoff_instruction_count = CalculateInitialInstructionCutoffCount(*_initial_state, params.search_depth);
+			printf("Cutoff Instruction Count = %d\n", _cutoff_instruction_count);
+			_nodes_processed = 0;
+			ProcessNode(*_initial_state, params.search_depth);
+		}
+		auto end = std::chrono::high_resolution_clock::now();
+		_run_time_seconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000000.0f;
 	}
 
 	void ProcessNode(BFVM& node, int depth)
@@ -1384,6 +1402,35 @@ public:
 		return true;
 	}
 
+	const std::vector<std::string>& GetBestSolutions() const
+	{
+		return _best_solutions;
+	}
+
+	const float GetRunTimeSeconds() const
+	{
+		return _run_time_seconds;
+	}
+
+	void PrintResults() const
+	{
+		printf("Brute Force Run Time - %0.4f\n", GetRunTimeSeconds());
+		auto best_solutions = GetBestSolutions();
+		if (best_solutions.empty())
+		{
+			printf("No solution found\n");
+		}
+		else
+		{
+			printf("Best Solutions (%d) - %d chars\n", (int)best_solutions.size(), (int)best_solutions[0].size());
+			for (int i = 0; i < best_solutions.size(); i++)
+			{
+				printf("%s\n", best_solutions[i].c_str());
+			}
+		}
+	}
+
+protected:
 	void SetTargetOutput(std::string target_output)
 	{
 		_target_output = target_output;
@@ -1399,12 +1446,6 @@ public:
 		_initial_state = VM_POOL.CloneVM(vm);
 	}
 
-	const std::vector<std::string>& GetBestSolutions() const
-	{
-		return _best_solutions;
-	}
-
-protected:
 	int CalculateInitialInstructionCutoffCount(const BFVM& node, const int depth)
 	{
 		const float ipo = 2.6f;
@@ -1446,43 +1487,21 @@ protected:
 	int _cutoff_instruction_count = 0;
 	std::vector<std::string> _best_solutions;
 	bool _debug_output_progress = false;
+	float _run_time_seconds = 0.0f;
 };
 
 void TestBruteForce()
 {
-	int search_depth = 15;
-	int starting_pattern = 257;
-	int vm_tape_size = 400;
-	std::string target_output_string = SQRT_2;
-
-	std::string starting_pattern_code = BuildBFPattern(starting_pattern);
-
-	BFVM vm(starting_pattern_code.c_str(), vm_tape_size, BFVM::OutputStyle::InternalBuffer);
-	vm.Run();
+	TestParams t;
+	t.search_depth = 16;
+	t.starting_instructions = BuildBFPattern(257);
+	t.vm_tape_size = 400;
+	t.target_output_string = SQRT_2;
 
 	BruteForce b;
-	b.SetTargetOutput(target_output_string);
-	b.SetInitialState(vm);
+	b.Run(t);
 
-	auto start = std::chrono::high_resolution_clock::now();
-	b.Run(search_depth);
-	auto end = std::chrono::high_resolution_clock::now();
-	float duration_seconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000000.0f;
-	printf("Brute Force Run Time - %0.4f\n", duration_seconds);
-	
-	auto best_solutions = b.GetBestSolutions();
-	if (best_solutions.empty())
-	{
-		printf("No solution found\n");
-	}
-	else
-	{
-		printf("Best Solutions (%d) - %d chars\n", (int)best_solutions.size(), (int)best_solutions[0].size());
-		for (int i = 0; i < best_solutions.size(); i++)
-		{
-			printf("%s\n", best_solutions[i].c_str());
-		}
-	}
+	b.PrintResults();
 }
 
 int main(int argc, char *argv[])
