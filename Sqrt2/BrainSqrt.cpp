@@ -712,8 +712,65 @@ struct TestParams
 	int64 max_nodes_to_process = 0;
 };
 
+// Base class to put common functionality
+class SearchBase
+{
+public:
+	SearchBase()
+	{
+	}
 
-class AStar
+	virtual ~SearchBase()
+	{
+	}
+
+	virtual const char* GetSearchStyleName() const
+	{
+		return "SearchBase";
+	}
+
+	const std::vector<std::string>& GetBestSolutions() const
+	{
+		return _best_solutions;
+	}
+
+	int64 GetNumNodesProcessed() const
+	{
+		return _num_nodes_processed;
+	}
+
+	const float GetRunTimeSeconds() const
+	{
+		return _run_time_seconds;
+	}
+
+	void PrintResults() const
+	{
+		printf("%s Run Time - %0.4f  (%lld nodes)\n", GetSearchStyleName(), GetRunTimeSeconds(), _num_nodes_processed);
+		auto best_solutions = GetBestSolutions();
+		if (best_solutions.empty())
+		{
+			printf("No solution found\n");
+		}
+		else
+		{
+			printf("Best Solutions (%d) - %d chars\n", (int)best_solutions.size(), (int)best_solutions[0].size());
+			for (int i = 0; i < best_solutions.size(); i++)
+			{
+				printf("%s\n", best_solutions[i].c_str());
+			}
+		}
+		printf("\n");
+	}
+
+protected:
+	TestParams _params;
+	std::vector<std::string> _best_solutions;
+	int64 _num_nodes_processed = 0;
+	float _run_time_seconds = 0.f;
+};
+
+class AStar : public SearchBase
 {
 public:
 	AStar()
@@ -726,6 +783,11 @@ public:
 		EmptyQueue();
 	}
 
+	virtual const char* GetSearchStyleName() const override
+	{
+		return "AStar";
+	}
+
 	const AStarNode* GetTopNode() const
 	{
 		if (!_queue.empty())
@@ -735,21 +797,12 @@ public:
 		return nullptr;
 	}
 	
-	const AStarNode* GetBestResult() const
-	{
-		if (_best_solution._vm != nullptr)
-		{
-			return &_best_solution;
-		}
-		return nullptr;
-	}
-
 	bool IsFinished() const
 	{
 		switch (_params.end_condition)
 		{
 		case EndCondition::FirstSolutionFound:
-			return GetBestResult() != nullptr;
+			return GetBestSolutions().empty() == false;
 		case EndCondition::SearchExhausted:
 			return _queue.empty() ||
 				((_params.max_nodes_to_process > 0) && (_num_nodes_processed >= _params.max_nodes_to_process));
@@ -761,12 +814,7 @@ public:
 
 	bool Succeeded() const
 	{
-		return IsFinished() && (GetBestResult() != nullptr);
-	}
-
-	int64 GetNumNodesProcessed() const
-	{
-		return _num_nodes_processed;
+		return IsFinished() && !GetBestSolutions().empty();
 	}
 
 	// Sets parameters for queue trimming.
@@ -835,29 +883,30 @@ public:
 		// Check if top is a solution
 		if (top_output_size == _target_output_size)
 		{
+			const BFVM& solution_vm = *top._vm;
 			// Found solution! Compare it with previous best
-			if (_best_solution._vm == nullptr)
+			const int solution_instruction_size = (int)solution_vm.GetInstructions().size();
+			bool print_solution = false;
+			bool _debug_output_progress = false;
+			if (_best_solutions.empty() || (solution_instruction_size == _best_solutions[0].size()))
 			{
-				_best_solution = top;
-				return;
+				// This is either the first solution or another one of the same size
+				_best_solutions.push_back(solution_vm.GetInstructions());
+				print_solution = true;
 			}
-			if (top._vm->GetInstructions().size() < _best_solution._vm->GetInstructions().size())
+			else if (solution_instruction_size < _best_solutions[0].size())
 			{
-				if (kPrintfSpamNewBests)
-				{
-					printf("New best! - %d\n", (int)top._vm->GetInstructions().size());
-					printf("%s\n", top._vm->GetInstructions().c_str());
-				}
-				VM_POOL.FreeVM(_best_solution._vm);
-				_best_solution = top;
+				_best_solutions.clear();
+				_best_solutions.push_back(solution_vm.GetInstructions());
+				print_solution = true;
 			}
-			else
+			if (print_solution && _debug_output_progress)
 			{
-				// not a new best
-				VM_POOL.FreeVM(top._vm);
+				printf("New Best - %d/%d : %s\n", (int)solution_vm.GetInstructions().size(), (int)solution_vm.GetOutput().size(), solution_vm.GetInstructions().c_str());
 			}
-			
-			// quit out... nothing else to do
+
+			// Free up the VM and early-out
+			VM_POOL.FreeVM(top._vm);
 			return;
 		}
 
@@ -901,25 +950,6 @@ public:
 		}
 	}
 
-	void PrintResults() const
-	{
-		// Pattern, Steps, Score, Output Size, Num Instructions
-		printf("AStar Run Time - %0.2fs  (%lld nodes)\n", _run_time_seconds, GetNumNodesProcessed());
-
-		if (Succeeded())
-		{
-			const AStarNode* solution = GetBestResult();
-			const std::string& str = solution->_vm->GetInstructions();
-			printf("Best Solution - %d chars\n", (int)str.size());
-			printf("%s\n", str.c_str());
-		}
-		else
-		{
-			printf("No solution found!\n");
-		}
-		printf("\n");
-	}
-
 protected:
 	void SetInitialState(const BFVM& vm)
 	{
@@ -938,9 +968,9 @@ protected:
 			return false;
 		}
 		
-		if (_best_solution._vm != nullptr)
+		if (!_best_solutions.empty())
 		{
-			if (node._vm->GetInstructions().size() >= _best_solution._vm->GetInstructions().size())
+			if (node._vm->GetInstructions().size() >= _best_solutions[0].size())
 			{
 				// new node is worse than knows solution; punt
 				VM_POOL.FreeVM(node._vm);
@@ -1161,22 +1191,18 @@ protected:
 	}
 
 protected:
-	TestParams _params;
 	BFVM _seed_vm;
 	int _target_output_size = 0;
 
 	//std::priority_queue<AStarNode> _queue;
 	PriorityQueue<AStarNode> _queue;
 	std::unordered_map<int64, float> _hash_to_best_score;
-	AStarNode _best_solution;
-	int64 _num_nodes_processed = 0;
 	int _queue_trim_size_threshold = 0;
 	float _queue_trim_amount = 0.0f;
 	bool _check_hash = true;
 
 	std::map<int, std::string> _length_to_best_solution;
 	bool _print_all_bests_next_trim = false;
-	float _run_time_seconds = 0.f;
 
 	// Parameters to control if and how _target_instructions_per_output is adjusted over time
 	float _target_instructions_per_output = 0.0f;
@@ -1325,10 +1351,15 @@ void AnalyzeInstructions(std::string initial_state, std::string instructions)
 	}
 }
 
-class BruteForce
+class BruteForce : public SearchBase
 {
 public:
 	BruteForce() {}
+
+	virtual const char* GetSearchStyleName() const override
+	{
+		return "Brute Force";
+	}
 
 	void Run(const TestParams& params)
 	{
@@ -1416,34 +1447,6 @@ public:
 		return true;
 	}
 
-	const std::vector<std::string>& GetBestSolutions() const
-	{
-		return _best_solutions;
-	}
-
-	const float GetRunTimeSeconds() const
-	{
-		return _run_time_seconds;
-	}
-
-	void PrintResults() const
-	{
-		printf("Brute Force Run Time - %0.4f  (%lld nodes)\n", GetRunTimeSeconds(), _num_nodes_processed);
-		auto best_solutions = GetBestSolutions();
-		if (best_solutions.empty())
-		{
-			printf("No solution found\n");
-		}
-		else
-		{
-			printf("Best Solutions (%d) - %d chars\n", (int)best_solutions.size(), (int)best_solutions[0].size());
-			for (int i = 0; i < best_solutions.size(); i++)
-			{
-				printf("%s\n", best_solutions[i].c_str());
-			}
-		}
-	}
-
 protected:
 	void SetInitialState(const BFVM& vm)
 	{
@@ -1486,9 +1489,9 @@ protected:
 		a.Run(astar_params);
 
 		int instruction_cutoff_count = 0;
-		if (const AStarNode* solution = a.GetBestResult())
+		if (!a.GetBestSolutions().empty())
 		{
-			const std::string& str = solution->_vm->GetInstructions();
+			const std::string& str = a.GetBestSolutions()[0];
 			instruction_cutoff_count = (int)str.size();
 		}
 		else
@@ -1499,12 +1502,9 @@ protected:
 	}
 
 protected:
-	TestParams _params;
 	BFVM* _initial_state = nullptr;
 
-	int64 _num_nodes_processed = 0;
 	int _cutoff_instruction_count = 0;
-	std::vector<std::string> _best_solutions;
 	bool _debug_output_progress = false;
 	float _run_time_seconds = 0.0f;
 };
@@ -1519,8 +1519,8 @@ void TestAStar()
 	t.starting_instructions = BuildBFPattern(257);
 	t.vm_tape_size = 400;
 	t.target_output_string = SQRT_2;
-	t.end_condition = EndCondition::FirstSolutionFound;
-	t.max_nodes_to_process = 0;// 50 * 1000;	// 0 = no limit
+	t.end_condition = EndCondition::SearchExhausted;
+	t.max_nodes_to_process = 1000 * 1000;	// 0 = no limit
 
 	float ipo = 2.6f;		// Instructions per output
 	float ipo_increment_per_trim = 0.f;	// 0.0001f;
