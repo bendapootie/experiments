@@ -710,6 +710,20 @@ struct TestParams
 	std::string target_output_string;
 	EndCondition end_condition = EndCondition::FirstSolutionFound;
 	int64 max_nodes_to_process = 0;
+
+	// AStar specific params?
+	// Parameters to control if and how _target_instructions_per_output is adjusted over time
+	float target_ipo = 2.6f;
+	// How much to increase _current_instructions_per_output if a trim happens without any increase in output length
+	float ipo_increment_per_trim = 0.f;	// 0.0001f;
+	// How big of a random factor to add to each score for variability
+	float random_score = 0.0f;			// 0.001f;
+
+	// parameters for queue trimming.
+	// If queue ever gets bigger than 'threshold', the bottom scoring values will be trimmed
+	// 'amount' is the percentage of the queue to trim off (0.8 = trim 80% of queue; 0.5 = trim 50%)
+	int queue_trim_size_threshold = 0;	// 0 = don't ever trim
+	float queue_trim_amount = 0.5f;		// 0.1 = 
 };
 
 // Base class to put common functionality
@@ -742,6 +756,12 @@ public:
 	const float GetRunTimeSeconds() const
 	{
 		return _run_time_seconds;
+	}
+
+	virtual void Run(const TestParams& params)
+	{
+		// Todo: Make pure virtual?
+		assert(false);
 	}
 
 	void PrintResults() const
@@ -817,31 +837,13 @@ public:
 		return IsFinished() && !GetBestSolutions().empty();
 	}
 
-	// Sets parameters for queue trimming.
-	// If queue ever gets bigger than 'threshold', the bottom scoring values will be trimmed
-	// 'amount' is the percentage of the queue to trim off (0.8 = trim 80% of queue; 0.5 = trim 50%)
-	void SetQueueTrimSettings(int queue_trim_size_threshold, float queue_trim_amount)
-	{
-		assert(queue_trim_size_threshold >= 0);
-		assert(queue_trim_amount >= 0.f && queue_trim_amount <= 1.f);
-		_queue_trim_size_threshold = queue_trim_size_threshold;
-		_queue_trim_amount = queue_trim_amount;
-	}
-
-	void SetInstructionsPerOutputSettings(const float base_ipo, const float ipo_increment_per_trim = 0.f, const float random_score =0.f)
-	{
-		_target_instructions_per_output = base_ipo;
-		_current_instructions_per_output = _target_instructions_per_output;
-		_ipo_increment_per_trim = ipo_increment_per_trim;
-		_random_score = random_score;
-	}
-
-	void Run(const TestParams& params)
+	virtual void Run(const TestParams& params) override
 	{
 		// Save off the starting params
 		_params = params;
 		// Todo: Put validation of _params somewhere more central. In TestParams struct?
 		assert(_params.search_depth <= _params.target_output_string.size());
+		_current_instructions_per_output = _params.target_ipo;
 
 		// Initialize the 'seed' vm
 		_seed_vm.Initialize(_params.starting_instructions.c_str(), _params.vm_tape_size, BFVM::OutputStyle::InternalBuffer);
@@ -944,7 +946,7 @@ public:
 		_num_nodes_processed++;
 
 		// Trim queue if it gets too big
-		if ((_queue_trim_size_threshold > 0) && ((int)_queue.size() >= _queue_trim_size_threshold))
+		if ((_params.queue_trim_size_threshold > 0) && ((int)_queue.size() >= _params.queue_trim_size_threshold))
 		{
 			TrimQueue();
 		}
@@ -979,7 +981,7 @@ protected:
 			}
 		}
 		
-		node.ComputeScore(_target_output_size, _current_instructions_per_output, _random_score);
+		node.ComputeScore(_target_output_size, _current_instructions_per_output, _params.random_score);
 
 		if (_check_hash == false)
 		{
@@ -1009,7 +1011,7 @@ protected:
 	{
 		static bool kTrimEveryOther = false;
 		static bool kTrimPerOutputLength = true;
-		assert(_queue_trim_amount >= 0.f && _queue_trim_amount <= 1.f);
+		assert(_params.queue_trim_amount >= 0.f && _params.queue_trim_amount <= 1.f);
 
 		static bool print_stats = false;
 		if (print_stats)
@@ -1017,7 +1019,7 @@ protected:
 			PrintDebugQueueStats();
 		}
 
-		if (_print_all_bests_next_trim)
+		if (_print_all_bests_next_trim && !kHideAllDebug)
 		{
 			PrintDebugAllBests();
 			_print_all_bests_next_trim = false;
@@ -1028,17 +1030,17 @@ protected:
 		if (top_output_size <= _longest_top_output_length)
 		{
 			// Output didn't get longer, increase scoring function parameters
-			_current_instructions_per_output += _ipo_increment_per_trim;
+			_current_instructions_per_output += _params.ipo_increment_per_trim;
 		}
 		else
 		{
 			// Track output length of top node
 			_longest_top_output_length = top_output_size;
 			// Output improved, reset scoring function parameters
-			_current_instructions_per_output = _target_instructions_per_output;
+			_current_instructions_per_output = _params.target_ipo;
 		}
 
-		int num_to_keep = (int)(_queue_trim_size_threshold * _queue_trim_amount);
+		int num_to_keep = (int)(_params.queue_trim_size_threshold * _params.queue_trim_amount);
 		std::map<int, int> size_to_num_to_keep;
 
 		if (kTrimPerOutputLength)
@@ -1061,7 +1063,7 @@ protected:
 				// Only trim this size bucket if there are more than the threshold allows
 				if (it.second > kKeepAllThreshold)
 				{
-					int num_for_size = (int)std::ceil(it.second * _queue_trim_amount);
+					int num_for_size = (int)std::ceil(it.second * _params.queue_trim_amount);
 					num_to_keep += num_for_size;
 					size_to_num_to_keep[it.first] = num_for_size;
 				}
@@ -1085,7 +1087,7 @@ protected:
 
 				// Decide if top should go in the keep list or be freed
 				float current_trim_amount = nodes_to_keep.size() / (float)num_processed;
-				if (current_trim_amount < _queue_trim_amount)
+				if (current_trim_amount < _params.queue_trim_amount)
 				{
 					nodes_to_keep.push_back(top);
 				}
@@ -1197,21 +1199,13 @@ protected:
 	//std::priority_queue<AStarNode> _queue;
 	PriorityQueue<AStarNode> _queue;
 	std::unordered_map<int64, float> _hash_to_best_score;
-	int _queue_trim_size_threshold = 0;
-	float _queue_trim_amount = 0.0f;
 	bool _check_hash = true;
+
+	float _current_instructions_per_output = 0.f;
 
 	std::map<int, std::string> _length_to_best_solution;
 	bool _print_all_bests_next_trim = false;
 
-	// Parameters to control if and how _target_instructions_per_output is adjusted over time
-	float _target_instructions_per_output = 0.0f;
-	// Value to use in scoring function that can change over time
-	float _current_instructions_per_output = 0.0f;
-	// How much to increase _current_instructions_per_output if a trim happens without any increase in output length
-	float _ipo_increment_per_trim = 0.0f;
-	// How big of a random factor to add to each score for variability
-	float _random_score = 0.f;
 	// Keeps track of how long the output was at the last trim to see if we're making progress
 	int _longest_top_output_length = 0;
 };
@@ -1361,7 +1355,7 @@ public:
 		return "Brute Force";
 	}
 
-	void Run(const TestParams& params)
+	virtual void Run(const TestParams& params) override
 	{
 		// Save off the starting params
 		_params = params;
@@ -1477,15 +1471,12 @@ protected:
 		TestParams astar_params(_params);
 		astar_params.end_condition = EndCondition::FirstSolutionFound;
 		astar_params.max_nodes_to_process = 0;	// no limit
+		astar_params.target_ipo = 2.6f;
 
-		const float ipo = 2.6f;
-		int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
-		float queue_trim_amount = 0.5f;
+		astar_params.queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
+		astar_params.queue_trim_amount = 0.5f;
 
 		AStar a;
-		a.SetInstructionsPerOutputSettings(ipo);
-		a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
-
 		a.Run(astar_params);
 
 		int instruction_cutoff_count = 0;
@@ -1506,7 +1497,6 @@ protected:
 
 	int _cutoff_instruction_count = 0;
 	bool _debug_output_progress = false;
-	float _run_time_seconds = 0.0f;
 };
 
 void TestAStar()
@@ -1522,16 +1512,16 @@ void TestAStar()
 	t.end_condition = EndCondition::SearchExhausted;
 	t.max_nodes_to_process = 1000 * 1000;	// 0 = no limit
 
-	float ipo = 2.6f;		// Instructions per output
-	float ipo_increment_per_trim = 0.f;	// 0.0001f;
-	float random_score = 0.0f; // 0.001f;
-	int queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
-	float queue_trim_amount = 0.5f;
+	// AStar specific parameters
+	t.target_ipo = 2.6f;		// Instructions per output
+	t.random_score = 0.0f; // 0.001f;
+
+	t.ipo_increment_per_trim = 0.f;	// 0.0001f;
+	t.queue_trim_size_threshold = 200 * 1000;	// 0 = don't ever trim
+	t.queue_trim_amount = 0.5f;
+
 
 	AStar a;
-	a.SetInstructionsPerOutputSettings(ipo, ipo_increment_per_trim, random_score);
-	a.SetQueueTrimSettings(queue_trim_size_threshold, queue_trim_amount);
-
 	a.Run(t);
 
 	a.PrintResults();
@@ -1540,7 +1530,7 @@ void TestAStar()
 void TestBruteForce()
 {
 	TestParams t;
-	t.search_depth = 16;
+	t.search_depth = 15;
 	t.starting_instructions = BuildBFPattern(257);
 	t.vm_tape_size = 400;
 	t.target_output_string = SQRT_2;
@@ -1553,6 +1543,109 @@ void TestBruteForce()
 	b.PrintResults();
 }
 
+std::string TrimLastOutputs(const std::string& instructions, const int num_outputs_tp_trim)
+{
+	int num_to_find = num_outputs_tp_trim;
+	int i = (int)instructions.size() - 1;
+	while ((num_to_find > 0) || (instructions[i] != '.'))
+	{
+		if (instructions[i] == '.')
+		{
+			num_to_find--;
+		}
+		i--;
+	}
+	return instructions.substr(0, (int64)(i) + 1);
+}
+
+void IterativeSolution()
+{
+	const bool kUseBruteForce = false;
+
+	const float kOutputIterationScalar = 0.05f;
+	const int kNumRandomIterations = 50;
+
+	TestParams t;
+	t.search_depth = 250;
+	t.starting_instructions = BuildBFPattern(257);
+	t.vm_tape_size = 400;
+	t.target_output_string = SQRT_2;
+	t.end_condition = kUseBruteForce ? EndCondition::SearchExhausted : EndCondition::FirstSolutionFound;
+	t.max_nodes_to_process = 0;	// 0 = no limit
+
+	// AStar-specific params
+	t.target_ipo = 2.5f;
+	t.ipo_increment_per_trim = 0.f;	// 0.0001f;
+	t.random_score = 0.0f;		// 0.001f;
+	t.queue_trim_size_threshold = 500 * 1000;	// 0 = don't ever trim
+	t.queue_trim_amount = 0.5f;		// 0.1 = 
+
+	std::vector<TestParams> scenarios_to_test;
+
+	scenarios_to_test.push_back(t);
+
+	int target_output_size = 0;
+	// Num output chars to trim per iteration
+	const int output_trim = (int)(t.search_depth * (1.0f - kOutputIterationScalar));
+	int iteration = 0;
+
+	while (target_output_size < (int)t.target_output_string.size())
+	{
+		target_output_size = std::min(target_output_size + t.search_depth, (int)t.target_output_string.size());
+		printf("Iteration %d  : Target output %d\n", ++iteration, target_output_size);
+		std::set<std::string> next_scenarios;
+		int min_length = 0;
+		for (int i = 0; i < scenarios_to_test.size(); i++)
+		{
+			int num_random_iterations = (t.random_score != 0.0f) ? kNumRandomIterations : 1;
+			for (int random_iteration = 0; random_iteration < num_random_iterations; random_iteration++)
+			{
+				SearchBase* search = nullptr;
+				if (kUseBruteForce)
+				{
+					search = new BruteForce();
+				}
+				else
+				{
+					search = new AStar();
+				}
+
+				search->Run(scenarios_to_test[i]);
+				search->PrintResults();
+
+				for (std::string s : search->GetBestSolutions())
+				{
+					std::string next_input = TrimLastOutputs(s, output_trim);
+					min_length = (min_length == 0 || min_length > (int)next_input.size()) ? (int)next_input.size() : min_length;
+					next_scenarios.insert(next_input);
+				}
+
+				delete search;
+			}
+		}
+
+		scenarios_to_test.clear();
+		// Todo: Move this completion check somewhere better
+		if (target_output_size < (int)t.target_output_string.size())
+		{
+			target_output_size -= output_trim;
+
+			for (std::string s : next_scenarios)
+			{
+				if (s.size() <= min_length)
+				{
+					t.starting_instructions = s;
+					scenarios_to_test.push_back(t);
+					if (target_output_size + scenarios_to_test.back().search_depth > (int)t.target_output_string.size())
+					{
+						scenarios_to_test.back().search_depth = (int)t.target_output_string.size() - target_output_size;
+					}
+				}
+			}
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	//int seed = (int)time(nullptr);
@@ -1560,8 +1653,9 @@ int main(int argc, char *argv[])
 	//srand(seed);
 	
 	BFVM::TestVM();
-	TestAStar();
-	TestBruteForce();
+	//TestAStar();
+	//TestBruteForce();
+	IterativeSolution();
 
 	/*
 	//AnalyzeInstructions(
