@@ -1562,11 +1562,12 @@ void IterativeSolution()
 {
 	const bool kUseBruteForce = false;
 
-	const float kOutputIterationScalar = 0.05f;
-	const int kNumRandomIterations = 50;
+	const float kOutputIterationScalar = 0.5f;
+	const int kNumRandomIterations = 4;
+	const int kNumSolutionsToKeepBetweenIterations = 15;
 
 	TestParams t;
-	t.search_depth = 250;
+	t.search_depth = 100;
 	t.starting_instructions = BuildBFPattern(257);
 	t.vm_tape_size = 400;
 	t.target_output_string = SQRT_2;
@@ -1574,10 +1575,10 @@ void IterativeSolution()
 	t.max_nodes_to_process = 0;	// 0 = no limit
 
 	// AStar-specific params
-	t.target_ipo = 2.5f;
+	t.target_ipo = 2.4f;
 	t.ipo_increment_per_trim = 0.f;	// 0.0001f;
-	t.random_score = 0.0f;		// 0.001f;
-	t.queue_trim_size_threshold = 500 * 1000;	// 0 = don't ever trim
+	t.random_score = 0.001f;		// 0.001f;
+	t.queue_trim_size_threshold = 2000 * 1000;	// 0 = don't ever trim
 	t.queue_trim_amount = 0.5f;		// 0.1 = 
 
 	std::vector<TestParams> scenarios_to_test;
@@ -1593,8 +1594,7 @@ void IterativeSolution()
 	{
 		target_output_size = std::min(target_output_size + t.search_depth, (int)t.target_output_string.size());
 		printf("Iteration %d  : Target output %d\n", ++iteration, target_output_size);
-		std::set<std::string> next_scenarios;
-		int min_length = 0;
+		std::map<int, std::vector<std::string>> solution_length_to_strings;
 		for (int i = 0; i < scenarios_to_test.size(); i++)
 		{
 			int num_random_iterations = (t.random_score != 0.0f) ? kNumRandomIterations : 1;
@@ -1615,9 +1615,8 @@ void IterativeSolution()
 
 				for (std::string s : search->GetBestSolutions())
 				{
-					std::string next_input = TrimLastOutputs(s, output_trim);
-					min_length = (min_length == 0 || min_length > (int)next_input.size()) ? (int)next_input.size() : min_length;
-					next_scenarios.insert(next_input);
+					int size = (int)s.size();
+					solution_length_to_strings[size].push_back(s);
 				}
 
 				delete search;
@@ -1625,21 +1624,34 @@ void IterativeSolution()
 		}
 
 		scenarios_to_test.clear();
+
 		// Todo: Move this completion check somewhere better
 		if (target_output_size < (int)t.target_output_string.size())
 		{
 			target_output_size -= output_trim;
 
-			for (std::string s : next_scenarios)
+			std::set<std::string> trimmed_next_scenarios;
+
+			// Keep the best 'x' solutions, trimming off the last several instructions and remove duplicates
+			for (auto it = solution_length_to_strings.begin(); it != solution_length_to_strings.end(); it++)
 			{
-				if (s.size() <= min_length)
+				for (std::string s : it->second)
 				{
-					t.starting_instructions = s;
-					scenarios_to_test.push_back(t);
-					if (target_output_size + scenarios_to_test.back().search_depth > (int)t.target_output_string.size())
+					if ((int)trimmed_next_scenarios.size() < kNumSolutionsToKeepBetweenIterations)
 					{
-						scenarios_to_test.back().search_depth = (int)t.target_output_string.size() - target_output_size;
+						trimmed_next_scenarios.insert(TrimLastOutputs(s, output_trim));
 					}
+				}
+			}
+
+			// Add all unique solutions to list of scenarios to test in next iteration
+			for (std::string s : trimmed_next_scenarios)
+			{
+				t.starting_instructions = s;
+				scenarios_to_test.push_back(t);
+				if (target_output_size + scenarios_to_test.back().search_depth > (int)t.target_output_string.size())
+				{
+					scenarios_to_test.back().search_depth = (int)t.target_output_string.size() - target_output_size;
 				}
 			}
 		}
