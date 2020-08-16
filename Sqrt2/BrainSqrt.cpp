@@ -1575,7 +1575,7 @@ void IterativeSolution()
 	t.max_nodes_to_process = 0;	// 0 = no limit
 
 	// AStar-specific params
-	t.target_ipo = 2.4f;
+	t.target_ipo = 2.6f;
 	t.ipo_increment_per_trim = 0.f;	// 0.0001f;
 	t.random_score = 0.001f;		// 0.001f;
 	t.queue_trim_size_threshold = 2000 * 1000;	// 0 = don't ever trim
