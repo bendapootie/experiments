@@ -1,4 +1,5 @@
 # Brainstorming
+
 * Show 3-state visibility (unseen, last seen, visible)
   * Notes on grid-based visibility
     * https://www.albertford.com/shadowcasting/
@@ -6,3 +7,38 @@
 * Movement - Grid vs Free vs Link to the Past?
 * Hard separation between game state and render
 * kbd / kbd+mouse / controller / glass
+
+
+
+Object flags
+
+- [ ] Blocks Movement
+- [ ] Moveable
+
+
+
+| Object   | Character | Flags           |
+| -------- | :-------- | --------------- |
+| Empty    | .         | none            |
+| Rock     | *         | Moveable        |
+| Stick    | /         | Moveable        |
+| Grass    | +         | none            |
+| Mountain | ^         | Blocks Movement |
+
+```Object Layer
+.//.........
+.......*.*..
+.........**.
+............
+...../.../..
+../.........
+```
+
+```Landscape Layer
+++++++++++++
+++++++++++++
+++^^^+++++++
+++++^^^+++++
+++++++++++++
+++++++++++++
+```
