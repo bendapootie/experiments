@@ -40,6 +40,7 @@ Object flags
 | Object   | Character | Flags           |
 | -------- | :-------- | --------------- |
 | Empty    | .         | none            |
+| Player    | @    | Moveable    |
 | Rock     | *         | Moveable        |
 | Stick    | /         | Moveable        |
 | Grass    | +         | none            |
