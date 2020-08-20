@@ -1,3 +1,10 @@
+# Next Steps
+
+- [ ] Load simple 2d landscape from disk
+  - Landscape is simple 2d grid
+
+
+
 # Brainstorming
 
 * Show 3-state visibility (unseen, last seen, visible)
@@ -8,14 +15,20 @@
 * Hard separation between game state and render
 * kbd / kbd+mouse / controller / glass
 
+
+
 # Data Structures
 * Landscape
 * Actor
 How much overlap is there between the two?
 *Stop overthinking and get something running*
 
+
+
 # Data Formats
 * json, csv, raw?
+
+
 
 Object flags
 
