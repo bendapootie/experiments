@@ -8,7 +8,14 @@
 * Hard separation between game state and render
 * kbd / kbd+mouse / controller / glass
 
+# Data Structures
+* Landscape
+* Actor
+How much overlap is there between the two?
+*Stop overthinking and get something running*
 
+# Data Formats
+* json, csv, raw?
 
 Object flags
 
