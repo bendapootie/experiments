@@ -1,17 +1,21 @@
+# TODO: Make into a stand-alone executable. Reference: https://www.pyinstaller.org/
 import math
 import heapq
+import tkinter as tk
+from tkinter.filedialog import askopenfilename, asksaveasfilename
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageChops
 
-# Priority Queue example...
-# quads = []
-# heapq.heappush(quads, (2, "Two"))
-# heapq.heappush(quads, (3, "Three"))
-# heapq.heappush(quads, (1, "One"))
-# heapq.heappush(quads, (4, "Four"))
-# while quads:
-#     print(heapq.heappop(quads))
+# How many times the image's size should the iterations cover?
+num_iterations = 1.0
+target_large_logic_display = None #Initilized when Tk is created
+instruction_count = 1000
+draws_per_flush = 10
+redraw_timer_seconds = 10
+
+LARGE_DISPLAY_DIMENSIONS = (176, 176)
+SMALL_DISPLAY_DIMENSIONS = (80, 80)
 
 def to_int_rgb(rgb):
     return (int(rgb[0]), int(rgb[1]), int(rgb[2]))
@@ -142,9 +146,6 @@ def build_rectangle_list_from_image(img, max_num_rects):
     # ImageDraw object to facilitate drawing onto out_img
     out_draw = ImageDraw.Draw(out_img)
 
-    # How many times the image's size should the iterations cover?
-    ITERATION_SCALAR = 4.0
-
     while (len(out_rects) < max_num_rects):
         percent_done = len(out_rects) / max_num_rects
         t = math.pow(percent_done, 2.0)
@@ -152,10 +153,9 @@ def build_rectangle_list_from_image(img, max_num_rects):
         s = int(img.width / denom)
         size = (s, s)
 
-        max_rects_to_return = min(10, max_num_rects - len(out_rects))
-        next_rects = get_next_best_rects(img, out_img, size, ITERATION_SCALAR, max_rects_to_return)
-
-        #out_rects.append(next_rect)
+        max_rects_to_return = min(20, max_num_rects - len(out_rects))
+        next_rects = get_next_best_rects(img, out_img, size, num_iterations, max_rects_to_return)
+        
         out_rects.extend(next_rects)
         for r in next_rects:
             out_draw.rectangle(xy=r[1], fill=r[2])
@@ -165,41 +165,120 @@ def build_rectangle_list_from_image(img, max_num_rects):
 
     return out_rects
 
-def print_mindustry_commands(rect_list, img, flush_frequency = 0):
-    height = img.height
+# Returns array of strings
+def get_mindustry_commands(rect_list, img, flush_frequency = 0):
+    out_commands = []
+    if redraw_timer_seconds == 0:
+        out_commands.append("jump 2 equal done false")
+        out_commands.append("end")
+    out_commands.append("draw clear 0 0 0 0 0 0")
 
-    print("Mindustry Commands ---------------------------------------------------------")
-    print("jump 2 equal done false")
-    print("end")
-    print("draw clear 0 0 0 0 0 0")
+    height = img.height
     for i, r in enumerate(rect_list):
-        print("draw color {0} {1} {2} 255 0 0".format(r[2][0], r[2][1], r[2][2]))
+        out_commands.append("draw color {0} {1} {2} 255 0 0".format(r[2][0], r[2][1], r[2][2]))
         x = r[1][0]
         y = (height - 1) - r[1][3]
         # Add 1 to width and height because Mindustry addressing things in slightly different way than pillow
         w = abs(r[1][2] - x) + 1
         h = abs(r[1][1] - r[1][3]) + 1
-        print("draw rect {0} {1} {2} {3} 0 0".format(x, y, w, h))
+        out_commands.append("draw rect {0} {1} {2} {3} 0 0".format(x, y, w, h))
         if (flush_frequency > 0) and ((i + 1) % flush_frequency == 0):
-            print("drawflush display1")
-    print("drawflush display1")
-    print("set done true")
-    print("end Mindustry Commands -----------------------------------------------------")
+            out_commands.append("drawflush display1")
+    out_commands.append("drawflush display1")
+    if redraw_timer_seconds == 0:
+        out_commands.append("set done true")
+    else:
+        out_commands.append("set countdown {0}".format(int(redraw_timer_seconds * 150 / 2)))
+        out_commands.append("op sub countdown countdown 1")
+        out_commands.append("jump {0} notEqual countdown 0".format(len(out_commands) - 1))
 
-def main():
-    dimensions = (80, 80)
-    max_rects = 470
+    return out_commands
+
+def process_image(src):
+    val = target_large_logic_display.get()
+    if val == 0:
+        dimensions = SMALL_DISPLAY_DIMENSIONS
+    else:
+        dimensions = LARGE_DISPLAY_DIMENSIONS
+
+    max_rects = int((instruction_count - 5) / 2)
+    if (draws_per_flush > 0):
+        # Each flush takes up only half as many instructions as a rectangle
+        max_rects -= int(max_rects / (draws_per_flush * 2.0))
     
-    #read the image
-    image = Image.open("philip_512.jpg")
-    image.convert("RGB")
+    image = src.convert('RGB')
     base_img = image.resize(dimensions, resample = Image.BOX)
 
     rect_list = build_rectangle_list_from_image(base_img, max_rects)
 
-    print(rect_list)
+    commands = get_mindustry_commands(rect_list, base_img, draws_per_flush)
+    return commands
 
-    print_mindustry_commands(rect_list, base_img, 10)
 
-if __name__ == "__main__":
-	main()
+source_image = None
+
+def open_file():
+    """Open an image for processing."""
+    filepath = askopenfilename(
+        filetypes=[("Image Files", "*.jpg *.png *.bmp *.tga"), ("All Files", "*.*")]
+    )
+    if not filepath:
+        return
+    global source_image
+    source_image = Image.open(filepath)
+    window.title(f"img2min - {filepath}")
+
+def convert_image():
+    """Process the image."""
+    global instruction_count
+    instruction_count = int(frm_instruction_count.get())
+    global num_iterations
+    num_iterations = float(frm_iterations.get())
+    commands = process_image(source_image)
+
+    txt_edit.delete(1.0, tk.END)
+    for s in commands:
+        txt_edit.insert(tk.END, s + '\n')
+
+window = tk.Tk()
+window.title("Image to Mindustry Converter")
+window.rowconfigure(0, minsize=400, weight=1)
+window.columnconfigure(1, minsize=400, weight=1)
+
+txt_edit = tk.Text(window)
+fr_buttons = tk.Frame(window, relief=tk.RAISED, bd=2)
+btn_open = tk.Button(fr_buttons, text="Open Image", command=open_file)
+btn_save = tk.Button(fr_buttons, text="Convert", command=convert_image)
+
+# Instruction Count
+lbl_instruction_count = tk.Label(fr_buttons, text="Num Instructions")
+frm_instruction_count = tk.Entry(fr_buttons, width=6)
+frm_instruction_count.insert(0, instruction_count)
+
+# Num Iterations
+lbl_iterations = tk.Label(fr_buttons, text="Iterations")
+frm_iterations = tk.Entry(fr_buttons, width=6)
+frm_iterations.insert(0, num_iterations)
+
+# Output Size
+target_large_logic_display = tk.IntVar(window, value=0, name="Large Display")
+chk_large_logic_display = tk.Checkbutton(
+    master=fr_buttons,
+    text="Large Logic Display (176x176)",
+    variable=target_large_logic_display,
+    onvalue=True,
+    offvalue=False
+)
+
+btn_open.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+btn_save.grid(row=1, column=0, sticky="ew", padx=5)
+lbl_instruction_count.grid(row=2, column=0)
+frm_instruction_count.grid(row=2, column=1, sticky="ew", padx=5, pady=5)
+lbl_iterations.grid(row=3, column=0)
+frm_iterations.grid(row=3, column=1, sticky="ew", padx=5, pady=5)
+chk_large_logic_display.grid(row=4)
+
+fr_buttons.grid(row=0, column=0, sticky="ns")
+txt_edit.grid(row=0, column=1, sticky="nsew")
+
+window.mainloop()
